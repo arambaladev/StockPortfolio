@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stocks List</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stocks List</h1>
+    <div>
+        <a href="{{ url_for('add_stock') }}"><button>Add New Stock</button></a>
+        <a href="{{ url_for('index') }}"><button>Home</button></a>
+    </div>
+    <table>
+        <tr>
+            <th>Name</th>
+            <th>Ticker Symbol</th>
+            <th>Exchange</th>
+            <th>Actions</th>
+        </tr>
+        {% for stock in stocks %}
+        <tr>
+            <td>{{ stock.name }}</td>
+            <td>{{ stock.tickersymbol }}</td>
+            <td>{{ stock.exchange }}</td>
+            <td>
+                <a href="{{ url_for('edit_stock', id=stock.id) }}">Edit</a>
+                <a href="{{ url_for('delete_stock', id=stock.id) }}">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

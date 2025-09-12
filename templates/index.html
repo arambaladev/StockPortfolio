@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Portfolio</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stock Portfolio</h1>
+    <div>
+        <a href="{{ url_for('index') }}"><button>Portfolio</button></a>
+        <a href="{{ url_for('stocks_list') }}"><button>Stocks</button></a>
+        <a href="{{ url_for('transactions') }}"><button>Transactions</button></a>
+        <a href="{{ url_for('prices') }}"><button>Prices</button></a>
+    </div>
+    <table>
+        <tr>
+            <th>Ticker Symbol</th>
+            <th>Quantity</th>
+            <th>Latest Price</th>
+            <th>Value</th>
+        </tr>
+        {% for item in portfolio_data %}
+        <tr>
+            <td>{{ item.tickersymbol }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ "%.2f"|format(item.latest_price) }}</td>
+            <td>{{ "%.2f"|format(item.value) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <h2>Total Portfolio Value: {{ "%.2f"|format(total_portfolio_value) }}</h2>
+</body>
+</html>

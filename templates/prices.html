@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prices List</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Prices List</h1>
+    <div>
+        <a href="{{ url_for('add_price') }}"><button>Add New Price</button></a>
+        <a href="{{ url_for('update_prices_from_google') }}"><button>Update Prices</button></a>
+        <a href="{{ url_for('index') }}"><button>Home</button></a>
+    </div>
+    <table>
+        <tr>
+            <th>Ticker Symbol</th>
+            <th>Date</th>
+            <th>Price</th>
+            <th>Actions</th>
+        </tr>
+        {% for price_entry in prices %}
+        <tr>
+            <td>{{ price_entry.tickersymbol }}</td>
+            <td>{{ price_entry.date }}</td>
+            <td>{{ price_entry.price }}</td>
+            <td>
+                <a href="{{ url_for('edit_price', id=price_entry.id) }}">Edit</a>
+                <a href="{{ url_for('delete_price', id=price_entry.id) }}">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

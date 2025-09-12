@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transactions</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transactions</h1>
+    <div>
+        <a href="{{ url_for('add_transaction') }}"><button>Add Txn</button></a>
+        <a href="{{ url_for('index') }}"><button>Home</button></a>
+    </div>
+    <table>
+        <tr>
+            <th>Ticker Symbol</th>
+            <th>Operation</th>
+            <th>Quantity</th>
+            <th>Date</th>
+            <th>Price</th>
+            <th>Actions</th>
+        </tr>
+        {% for transaction in transactions %}
+        <tr>
+            <td>{{ transaction.tickersymbol }}</td>
+            <td>{{ transaction.operation }}</td>
+            <td>{{ transaction.quantity }}</td>
+            <td>{{ transaction.date }}</td>
+            <td>{{ transaction.price }}</td>
+            <td>
+                <a href="{{ url_for('edit_transaction', id=transaction.id) }}">Edit</a>
+                <a href="{{ url_for('delete_transaction', id=transaction.id) }}">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
