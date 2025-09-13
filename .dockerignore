@@ -5,4 +5,3 @@ instance/
 *.pyc
 *.db
 Dockerfile
-requirements.txt
