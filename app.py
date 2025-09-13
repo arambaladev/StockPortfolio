@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from models import db, Stock, Transaction, Portfolio, Price
 import os
 import random
@@ -12,9 +12,39 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stocks.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
+# Sample list of high-volume tickers (for demonstration)
+# In a real application, this would be fetched dynamically from a reliable source.
+SAMPLE_HIGH_VOLUME_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "JPM", "V",
+    "JNJ", "WMT", "PG", "XOM", "HD", "UNH", "MA", "VZ", "DIS", "ADBE",
+    "NFLX", "PYPL", "INTC", "CMCSA", "PEP", "KO", "PFE", "MRK", "ABT", "NKE",
+    "BAC", "C", "WFC", "GS", "MS", "AMGN", "GILD", "BMY", "CVS", "MDLZ",
+    "SBUX", "GM", "ORCL"
+]
+
+def populate_initial_stocks():
+    print("Populating initial stocks...")
+    for ticker_symbol in SAMPLE_HIGH_VOLUME_TICKERS:
+        existing_stock = Stock.query.filter_by(tickersymbol=ticker_symbol).first()
+        if not existing_stock:
+            try:
+                # Fetch stock info to get a name, if possible
+                ticker_info = yf.Ticker(ticker_symbol).info
+                stock_name = ticker_info.get('longName', ticker_symbol)
+                exchange = ticker_info.get('exchange', 'N/A') # Default to N/A if not found
+
+                new_stock = Stock(name=stock_name, tickersymbol=ticker_symbol, exchange=exchange)
+                db.session.add(new_stock)
+                print(f"Added new stock: {ticker_symbol} - {stock_name}")
+            except Exception as e:
+                print(f"Could not add stock {ticker_symbol}: {e}")
+    db.session.commit()
+    print("Initial stock population complete.")
+
 # Create the database tables
 with app.app_context():
     db.create_all()
+    populate_initial_stocks() # Call the function here
 
 @app.route('/')
 def index():
@@ -58,8 +88,8 @@ def add_stock():
         new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange)
         db.session.add(new_stock)
         db.session.commit()
-        return redirect(url_for('index'))
-    return render_template('add_stock.html')
+        return redirect(url_for('stocks_list')) # Redirect to stocks_list after adding
+    return redirect(url_for('stocks_list')) # Redirect GET requests to the stocks list
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 def edit_stock(id):
@@ -163,12 +193,16 @@ def update_portfolio(tickersymbol):
 @app.route('/transactions')
 def transactions():
     transactions = Transaction.query.all()
-    return render_template('transactions.html', transactions=transactions)
+    stocks = Stock.query.order_by(Stock.tickersymbol).all() # Fetch all stocks, ordered alphabetically
+    # Determine the latest ticker symbol for defaulting. Assuming latest means last alphabetically.
+    latest_tickersymbol = stocks[-1].tickersymbol if stocks else ''
+    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol)
 
 @app.route('/prices')
 def prices():
     prices = Price.query.all()
-    return render_template('prices.html', prices=prices)
+    stocks = Stock.query.all() # Fetch all stocks for the modal dropdown
+    return render_template('prices.html', prices=prices, stocks=stocks)
 
 @app.route('/add_price', methods=['GET', 'POST'])
 def add_price():
@@ -187,8 +221,7 @@ def add_price():
         db.session.commit()
         return redirect(url_for('prices'))
     
-    stocks = Stock.query.all() # To populate dropdown
-    return render_template('add_price.html', stocks=stocks)
+    return redirect(url_for('prices')) # Redirect GET requests to the prices list
 
 @app.route('/edit_price/<int:id>', methods=['GET', 'POST'])
 def edit_price(id):
@@ -324,6 +357,18 @@ def delete_transaction(id):
     db.session.commit()
     update_portfolio(transaction.tickersymbol)
     return redirect(url_for('transactions'))
+
+@app.route('/search_tickers')
+def search_tickers():
+    query = request.args.get('q', '').upper()
+    if query:
+        # Search for ticker symbols that start with the query
+        # Using ilike for case-insensitive search
+        stocks = Stock.query.filter(Stock.tickersymbol.ilike(f'{query}%')).order_by(Stock.tickersymbol).limit(10).all()
+        results = [stock.tickersymbol for stock in stocks]
+    else:
+        results = []
+    return jsonify(results)
 
 if __name__ == '__main__':
     app.run(debug=True)

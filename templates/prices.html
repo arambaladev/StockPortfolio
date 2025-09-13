@@ -16,33 +16,134 @@
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
+        /* Modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+            max-width: 500px;
+            position: relative;
+            display: flex; /* Added for centering children */
+            flex-direction: column; /* Added for centering children */
+            align-items: center; /* Added for centering children horizontally */
+        }
+
+        .close-button {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            z-index: 1001;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <h1>Prices List</h1>
-    <div>
-        <a href="{{ url_for('add_price') }}"><button>Add New Price</button></a>
-        <a href="{{ url_for('update_prices_from_google') }}"><button>Update Prices</button></a>
-        <a href="{{ url_for('index') }}"><button>Home</button></a>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <a href="{{ url_for('index') }}">
+            <button style="background-color: #007bff; border: none; padding: 8px 12px; cursor: pointer; border-radius: 5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-home"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            </button>
+        </a>
+        <a href="{{ url_for('update_prices_from_google') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px;">Update Prices</button></a>
+        <button onclick="openAddPriceModal()" style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Price</button>
     </div>
     <table>
         <tr>
             <th>Ticker Symbol</th>
             <th>Date</th>
             <th>Price</th>
-            <th>Actions</th>
+            <th style="width: 100px;">Actions</th>
         </tr>
         {% for price_entry in prices %}
         <tr>
             <td>{{ price_entry.tickersymbol }}</td>
             <td>{{ price_entry.date }}</td>
             <td>{{ price_entry.price }}</td>
-            <td>
-                <a href="{{ url_for('edit_price', id=price_entry.id) }}">Edit</a>
-                <a href="{{ url_for('delete_price', id=price_entry.id) }}">Delete</a>
+            <td style="width: 100px;">
+                <a href="{{ url_for('edit_price', id=price_entry.id) }}" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none; margin-right: 5px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </a>
+                <a href="{{ url_for('delete_price', id=price_entry.id) }}" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </a>
             </td>
         </tr>
         {% endfor %}
     </table>
+
+    <div id="addPriceModal" class="modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; background-color: maroon; padding: 10px; width: 100%;">
+                <h2 style="color: white; text-align: center; margin: 0; flex-grow: 1;">Add New Price</h2>
+                <span class="close-button" onclick="closeAddPriceModal()" style="position: static; color: white; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            </div>
+            <form method="post" action="{{ url_for('add_price') }}">
+                <div style="display: flex; align-items: center; margin-bottom: 10px; margin-top: 20px;">
+                    <label for="tickersymbol" style="margin-right: 10px; min-width: 120px;">Ticker Symbol:</label>
+                    <select id="tickersymbol" name="tickersymbol" required style="width: 150px;">
+                        {% for stock in stocks %}
+                            <option value="{{ stock.tickersymbol }}">{{ stock.tickersymbol }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <label for="date" style="margin-right: 10px; min-width: 120px;">Date:</label>
+                    <input type="date" id="date" name="date" required style="width: 150px;">
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                    <label for="price" style="margin-right: 10px; min-width: 120px;">Price:</label>
+                    <input type="number" step="0.01" id="price" name="price" required style="width: 150px;">
+                </div>
+                <input type="submit" value="Submit" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 0 auto; display: block;">
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Get the modal
+        var modal = document.getElementById("addPriceModal");
+
+        // Function to open the modal
+        function openAddPriceModal() {
+            modal.style.display = "block";
+        }
+
+        // Function to close the modal
+        function closeAddPriceModal() {
+            modal.style.display = "none";
+        }
+
+        // Close the modal if the user clicks outside of it
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
 </body>
 </html>
