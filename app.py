@@ -4,6 +4,57 @@ import os
 import random
 import datetime
 import yfinance as yf
+from sqlalchemy import or_
+
+def _xnpv(rate, cash_flows, dates):
+    """
+    Calculate the Net Present Value (NPV) for a series of cash flows
+    occurring at irregular intervals.
+    """
+    if rate <= -1.0:
+        return float('inf')
+    
+    min_date = min(dates)
+    npv = 0
+    for i in range(len(cash_flows)):
+        days = (dates[i] - min_date).days
+        npv += cash_flows[i] / (1 + rate)**(days / 365.0)
+    return npv
+
+def calculate_xirr(cash_flows, dates, guess=0.1):
+    """
+    Calculate the Extended Internal Rate of Return (XIRR).
+    Uses Newton-Raphson method.
+    """
+    if not cash_flows or len(cash_flows) != len(dates):
+        return None # Or raise an error
+
+    # Sort cash flows and dates by date
+    sorted_data = sorted(zip(dates, cash_flows))
+    dates = [d for d, cf in sorted_data]
+    cash_flows = [cf for d, cf in sorted_data]
+
+    # Newton-Raphson method
+    for i in range(100): # Max 100 iterations
+        npv = _xnpv(guess, cash_flows, dates)
+        
+        # Calculate derivative of NPV
+        deriv_npv = 0
+        min_date = min(dates)
+        for j in range(len(cash_flows)):
+            days = (dates[j] - min_date).days
+            if days == 0: # Avoid division by zero for the first cash flow
+                continue
+            deriv_npv -= cash_flows[j] * days / 365.0 * (1 + guess)**(-days / 365.0 - 1)
+        
+        if abs(npv) < 0.000001: # Convergence check
+            return guess
+        if deriv_npv == 0: # Avoid division by zero
+            return None # Or handle as an error
+        
+        guess = guess - npv / deriv_npv
+    
+    return None # Did not converge
 
 app = Flask(__name__)
 
@@ -58,12 +109,47 @@ def index():
         latest_price = price_entry.price if price_entry else 0.0
         item_value = item.quantity * latest_price
         total_portfolio_value += item_value
+
+        # Prepare data for XIRR calculation
+        cash_flows = []
+        dates = []
+
+        # Get all transactions for the current stock
+        transactions = Transaction.query.filter_by(tickersymbol=item.tickersymbol).order_by(Transaction.date).all()
+
+        for transaction in transactions:
+            if transaction.operation == 'Buy':
+                cash_flows.append(-transaction.quantity * transaction.price)
+            else: # Sell
+                cash_flows.append(transaction.quantity * transaction.price)
+            dates.append(datetime.datetime.strptime(transaction.date, '%Y-%m-%d').date())
+
+        # Add current value as a final cash flow
+        if item.quantity > 0 and latest_price > 0:
+            cash_flows.append(item.quantity * latest_price)
+            dates.append(datetime.date.today())
+
+        xirr_value = None
+        if len(cash_flows) > 1: # XIRR requires at least two cash flows
+            try:
+                xirr_value = calculate_xirr(cash_flows, dates)
+            except Exception as e:
+                print(f"Error calculating XIRR for {item.tickersymbol}: {e}")
+
         portfolio_data.append({
             'tickersymbol': item.tickersymbol,
             'quantity': item.quantity,
             'latest_price': latest_price,
-            'value': item_value
+            'value': item_value,
+            'percentage': 0.0, # Placeholder, will be calculated later
+            'xirr': xirr_value
         })
+    
+    # Calculate percentage of portfolio for each item
+    if total_portfolio_value > 0:
+        for item in portfolio_data:
+            item['percentage'] = (item['value'] / total_portfolio_value) * 100
+
     return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value)
 
 @app.route('/add', methods=['GET', 'POST'])
@@ -362,10 +448,12 @@ def delete_transaction(id):
 def search_tickers():
     query = request.args.get('q', '').upper()
     if query:
-        # Search for ticker symbols that start with the query
-        # Using ilike for case-insensitive search
-        stocks = Stock.query.filter(Stock.tickersymbol.ilike(f'{query}%')).order_by(Stock.tickersymbol).limit(10).all()
-        results = [stock.tickersymbol for stock in stocks]
+        # Search for ticker symbols or names that start with the query
+        stocks = Stock.query.filter(or_(
+            Stock.tickersymbol.ilike(f'{query}%'),
+            Stock.name.ilike(f'{query}%')
+        )).order_by(Stock.tickersymbol).limit(10).all()
+        results = [{'tickersymbol': stock.tickersymbol, 'name': stock.name} for stock in stocks]
     else:
         results = []
     return jsonify(results)
