@@ -4,9 +4,15 @@
     <meta charset="UTF-8">
     <title>Stock Portfolio</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 20px;
         }
         th, td {
             border: 1px solid #dddddd;
@@ -16,20 +22,82 @@
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+        .message.danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+        .message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border-color: #bee5eb;
+        }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .auth-links {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .auth-links a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+    <div class="header-container">
         <h1>Stock Portfolio</h1>
-        <a href="{{ url_for('transactions', open_modal=true) }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Add Investment</button></a>
+        <div class="auth-links">
+            {% if session.user_id %}
+                <span>Welcome, {{ session.username }}!</span>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login') }}">Login</a>
+                <a href="{{ url_for('signup') }}">Sign Up</a>
+            {% endif %}
+        </div>
     </div>
-    <h2 style="text-align: left; margin-top: 0; margin-bottom: 20px;">Current Value: ${{ "%.2f"|format(total_portfolio_value) }}</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="messages">
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <h2 style="text-align: left; margin-top: 0; margin-bottom: 0;">Current Value: ${{ "%.2f"|format(total_portfolio_value) }}</h2>
+        <a href="{{ url_for('transactions', open_modal=true) }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Investments</button></a>
+    </div>
+
     <table>
         <tr>
             <th style="background-color: maroon; color: white;">Ticker Symbol</th>
             <th style="background-color: maroon; color: white;">Quantity</th>
             <th style="background-color: maroon; color: white;">Latest Price</th>
-            <th style="background-color: maroon; color: white;">Value</th>
+            <th style="background-color: maroon; color: white;">Cost Basis</th>
+            <th style="background-color: maroon; color: white;">Current Value</th>
             <th style="background-color: maroon; color: white;">% of Portfolio</th>
             <th style="background-color: maroon; color: white;">XIRR</th>
         </tr>
@@ -38,6 +106,7 @@
             <td>{{ item.tickersymbol }}</td>
             <td>{{ item.quantity }}</td>
             <td>${{ "%.2f"|format(item.latest_price) }}</td>
+            <td>${{ "%.2f"|format(item.cost_basis) }}</td>
             <td>${{ "%.2f"|format(item.value) }}</td>
             <td>{{ "%.2f"|format(item.percentage) }}%</td>
             <td>
@@ -51,8 +120,10 @@
         {% endfor %}
     </table>
     <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        {% if session.is_admin %}
         <a href="{{ url_for('stocks_list') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Stocks</button></a>
         <a href="{{ url_for('prices') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Prices</button></a>
+        {% endif %}
     </div>
 </body>
 </html>
