@@ -149,6 +149,7 @@ def login():
             session['user_id'] = user.id
             session['username'] = user.username
             session['is_admin'] = user.is_admin
+            update_user_portfolio_prices(user.id) # Update prices for the logged-in user
             flash('Logged in successfully!', 'success')
             return redirect(url_for('index'))
         else:
@@ -379,6 +380,34 @@ def update_portfolio(tickersymbol, user_id):
             new_portfolio_entry = Portfolio(tickersymbol=tickersymbol, quantity=total_quantity, value=current_value, user_id=user_id)
             db.session.add(new_portfolio_entry)
     db.session.commit()
+
+def update_user_portfolio_prices(user_id):
+    # Get all unique ticker symbols from the user's portfolio
+    portfolio_tickers = db.session.query(Portfolio.tickersymbol).filter_by(user_id=user_id).distinct().all()
+    portfolio_tickers = [ticker[0] for ticker in portfolio_tickers] # Extract ticker symbols from tuples
+
+    today = datetime.date.today().isoformat()
+
+    for tickersymbol in portfolio_tickers:
+        try:
+            ticker = yf.Ticker(tickersymbol)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                latest_price = round(hist['Close'].iloc[-1], 2)
+
+                # Check if a price for today already exists for this stock
+                price_entry = Price.query.filter_by(tickersymbol=tickersymbol, date=today).first()
+                if price_entry:
+                    price_entry.price = latest_price
+                else:
+                    new_price = Price(tickersymbol=tickersymbol, date=today, price=latest_price)
+                    db.session.add(new_price)
+            else:
+                print(f"No historical data found for {tickersymbol} for today.")
+        except Exception as e:
+            print(f"Error updating price for {tickersymbol}: {e}")
+    
+    db.session.commit() # Commit all price changes at once
 
 
 def calculate_fifo_cost_basis(tickersymbol, user_id, current_quantity):
