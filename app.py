@@ -554,14 +554,34 @@ def add_transaction():
         db.session.add(new_transaction)
         db.session.commit()
 
-        # Update Price table based on transaction
-        price_entry = Price.query.filter_by(tickersymbol= tickersymbol, date=date).first()
+        # Update Price table with transaction price
+        price_entry = Price.query.filter_by(tickersymbol=tickersymbol, date=date).first()
         if price_entry:
             price_entry.price = float(price)
         else:
-            new_price_entry = Price(tickersymbol= tickersymbol, date=date, price=float(price))
+            new_price_entry = Price(tickersymbol=tickersymbol, date=date, price=float(price))
             db.session.add(new_price_entry)
-        db.session.commit() # Commit the price change
+        
+        # Fetch and add the latest price
+        try:
+            today = datetime.date.today().isoformat()
+            ticker = yf.Ticker(tickersymbol)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                latest_price = round(hist['Close'].iloc[-1], 2)
+                
+                # Check if a price for today already exists
+                latest_price_entry = Price.query.filter_by(tickersymbol=tickersymbol, date=today).first()
+                if latest_price_entry:
+                    latest_price_entry.price = latest_price
+                else:
+                    new_latest_price_entry = Price(tickersymbol=tickersymbol, date=today, price=latest_price)
+                    db.session.add(new_latest_price_entry)
+        except Exception as e:
+            print(f"Error fetching latest price for {tickersymbol}: {e}")
+            # Decide if you want to flash a message to the user
+            
+        db.session.commit() # Commit all price changes
 
         update_portfolio(tickersymbol, session['user_id'])
         return redirect(url_for('transactions'))
@@ -591,14 +611,33 @@ def edit_transaction(id):
 
         db.session.commit()
 
-        # Update Price table based on transaction
+        # Update Price table with transaction price
         price_entry = Price.query.filter_by(tickersymbol=transaction.tickersymbol, date=transaction.date).first()
         if price_entry:
             price_entry.price = float(transaction.price)
         else:
             new_price_entry = Price(tickersymbol=transaction.tickersymbol, date=transaction.date, price=float(transaction.price))
             db.session.add(new_price_entry)
-        db.session.commit() # Commit the price change
+
+        # Fetch and add the latest price
+        try:
+            today = datetime.date.today().isoformat()
+            ticker = yf.Ticker(transaction.tickersymbol)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                latest_price = round(hist['Close'].iloc[-1], 2)
+                
+                # Check if a price for today already exists
+                latest_price_entry = Price.query.filter_by(tickersymbol=transaction.tickersymbol, date=today).first()
+                if latest_price_entry:
+                    latest_price_entry.price = latest_price
+                else:
+                    new_latest_price_entry = Price(tickersymbol=transaction.tickersymbol, date=today, price=latest_price)
+                    db.session.add(new_latest_price_entry)
+        except Exception as e:
+            print(f"Error fetching latest price for {transaction.tickersymbol}: {e}")
+
+        db.session.commit() # Commit all price changes
 
         update_portfolio(transaction.tickersymbol, session['user_id'])
         return redirect(url_for('transactions'))
