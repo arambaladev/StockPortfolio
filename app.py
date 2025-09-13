@@ -548,7 +548,7 @@ def add_transaction():
         if operation == 'Sell':
             available_quantity = get_current_stock_quantity(tickersymbol, date, session['user_id'])
             if int(quantity) > available_quantity:
-                return "Insufficient quantity to sell.", 400 # Bad Request
+                return jsonify({'error': 'Insufficient quantity to sell.'}), 400
 
         new_transaction = Transaction(tickersymbol= tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), user_id=session['user_id'])
         db.session.add(new_transaction)
