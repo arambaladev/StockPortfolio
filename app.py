@@ -186,6 +186,7 @@ def index():
     portfolio_items = Portfolio.query.filter_by(user_id=session['user_id']).all()
     portfolio_data = []
     total_portfolio_value = 0.0
+    total_invested_amount = 0.0 # Initialize total invested amount
 
     for item in portfolio_items:
         # Get latest price from Price table for display in portfolio
@@ -215,6 +216,7 @@ def index():
 
         # Calculate FIFO Cost Basis
         cost_basis = calculate_fifo_cost_basis(item.tickersymbol, session['user_id'], item.quantity)
+        total_invested_amount += cost_basis # Add to total invested amount
 
         xirr_value = None
         if len(cash_flows) > 1: # XIRR requires at least two cash flows
@@ -240,7 +242,11 @@ def index():
         for item in portfolio_data:
             item['percentage'] = (item['value'] / total_portfolio_value) * 100
 
-    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value)
+    print(f"DEBUG: total_portfolio_value: {total_portfolio_value}")
+    print(f"DEBUG: portfolio_data: {portfolio_data}")
+    print(f"DEBUG: total_invested_amount: {total_invested_amount}") # Debug print for invested amount
+
+    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value, total_invested_amount=total_invested_amount)
 
 @app.route('/add', methods=['GET', 'POST'])
 @admin_required
@@ -594,6 +600,35 @@ def search_tickers():
     else:
         results = []
     return jsonify(results)
+
+@app.route('/get_historical_prices')
+@login_required
+def get_historical_prices():
+    tickersymbol = request.args.get('tickersymbol', '').upper()
+    date_str = request.args.get('date', '')
+
+    if not tickersymbol or not date_str:
+        return jsonify({'error': 'Ticker symbol and date are required.'}), 400
+
+    try:
+        # Convert date string to datetime object
+        selected_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        # yfinance expects start and end date for history method
+        start_date = selected_date
+        end_date = selected_date + datetime.timedelta(days=1) # Fetch for a single day
+
+        ticker = yf.Ticker(tickersymbol)
+        hist = ticker.history(start=start_date, end=end_date)
+
+        if not hist.empty:
+            low_price = round(hist['Low'].iloc[0], 2)
+            high_price = round(hist['High'].iloc[0], 2)
+            return jsonify({'low': low_price, 'high': high_price})
+        else:
+            return jsonify({'low': None, 'high': None, 'message': 'No historical data found for this date.'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

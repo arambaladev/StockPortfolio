@@ -90,6 +90,9 @@
         <h2 style="text-align: left; margin-top: 0; margin-bottom: 0;">Current Value: ${{ "%.2f"|format(total_portfolio_value) }}</h2>
         <a href="{{ url_for('transactions', open_modal=true) }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Investments</button></a>
     </div>
+    <div style="text-align: left; margin-top: -10px; margin-bottom: 15px;">
+        <span style="font-size: 0.9em; font-style: italic;">Invested Amount: ${{ "%.2f"|format(total_invested_amount) }}</span>
+    </div>
 
     <table>
         <tr>
@@ -119,6 +122,7 @@
         </tr>
         {% endfor %}
     </table>
+    
     <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
         {% if session.is_admin %}
         <a href="{{ url_for('stocks_list') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Stocks</button></a>

@@ -86,7 +86,7 @@
             <td>{{ transaction.operation }}</td>
             <td>{{ transaction.quantity }}</td>
             <td>{{ transaction.date }}</td>
-            <td>${{ transaction.price }}</td>
+            <td>${{ "%.2f"|format(transaction.price) }}</td>
             <td style="width: 100px;">
                 <a href="{{ url_for('edit_transaction', id=transaction.id) }}" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none; margin-right: 5px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -126,6 +126,14 @@
                     <label for="price" style="margin-right: 10px; min-width: 120px;">Price:</label>
                     <input type="number" step="0.01" id="price" name="price" required style="width: 150px;">
                 </div>
+                <div style="display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 270px; margin-top: 5px; margin-bottom: 10px;">
+                    <input type="range" id="priceSlider" min="0" max="100" step="0.01" value="0" style="width: 100%;">
+                    <div style="display: flex; justify-content: space-between; width: 100%; margin-top: 5px;">
+                        <span id="lowPriceDisplay" style="color: blue; font-size: 0.9em;"></span>
+                        <span id="currentSliderValue" style="font-size: 0.9em; font-weight: bold;"></span>
+                        <span id="highPriceDisplay" style="color: blue; font-size: 0.9em;"></span>
+                    </div>
+                </div>
                 <div style="display: flex; align-items: center; margin-bottom: 20px;">
                     <label for="date" style="margin-right: 10px; min-width: 120px;">Date:</label>
                     <input type="date" id="date" name="date" required style="width: 150px;">
@@ -136,6 +144,90 @@
     </div>
 
     <script>
+        // Get references to the elements
+        const transactionTickerInput = document.getElementById('tickersymbol');
+        const transactionDateInput = document.getElementById('date');
+        const priceInput = document.getElementById('price'); // Get reference to the price input
+        const priceSlider = document.getElementById('priceSlider'); // Get reference to the new slider
+        const lowPriceDisplay = document.getElementById('lowPriceDisplay');
+        const highPriceDisplay = document.getElementById('highPriceDisplay');
+        const currentSliderValueDisplay = document.getElementById('currentSliderValue'); // New element for current slider value
+
+        // Function to fetch and display historical prices
+        function fetchHistoricalPrices() {
+            const tickersymbol = transactionTickerInput.value;
+            const date = transactionDateInput.value;
+
+            if (tickersymbol && date) {
+                fetch(`/get_historical_prices?tickersymbol=${tickersymbol}&date=${date}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.low !== undefined && data.high !== undefined && data.low !== null && data.high !== null) {
+                            const low = parseFloat(data.low);
+                            const high = parseFloat(data.high);
+
+                            lowPriceDisplay.textContent = `${low.toFixed(2)}`;
+                            highPriceDisplay.textContent = `${high.toFixed(2)}`;
+
+                            // Set slider min, max, and initial value
+                            priceSlider.min = low;
+                            priceSlider.max = high;
+                            priceSlider.step = 0.01; // Allow decimal steps
+
+                            // Set initial slider value to the average or current price if available
+                            let initialSliderValue = priceInput.value ? parseFloat(priceInput.value) : (low + high) / 2;
+                            if (initialSliderValue < low || initialSliderValue > high) {
+                                initialSliderValue = (low + high) / 2; // Ensure initial value is within range
+                            }
+                            priceSlider.value = initialSliderValue;
+                            priceInput.value = initialSliderValue.toFixed(2); // Update price input
+                            currentSliderValueDisplay.textContent = `${initialSliderValue.toFixed(2)}`; // Update current slider value display
+
+                            priceSlider.style.display = 'block'; // Show the slider
+                        } else {
+                            lowPriceDisplay.textContent = 'N/A';
+                            highPriceDisplay.textContent = 'N/A';
+                            currentSliderValueDisplay.textContent = '';
+                            priceSlider.style.display = 'none'; // Hide the slider if no data
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching historical prices:', error);
+                        lowPriceDisplay.textContent = 'Error';
+                        highPriceDisplay.textContent = 'Error';
+                        currentSliderValueDisplay.textContent = '';
+                        priceSlider.style.display = 'none'; // Hide the slider on error
+                    });
+            } else {
+                lowPriceDisplay.textContent = '';
+                highPriceDisplay.textContent = '';
+                currentSliderValueDisplay.textContent = '';
+                priceSlider.style.display = 'none'; // Hide the slider if no ticker/date
+            }
+        }
+
+        // Event listener for slider input
+        priceSlider.addEventListener('input', function() {
+            priceInput.value = parseFloat(this.value).toFixed(2);
+            currentSliderValueDisplay.textContent = `${parseFloat(this.value).toFixed(2)}`;
+        });
+
+        // Event listener for direct price input changes (to update slider)
+        priceInput.addEventListener('input', function() {
+            const val = parseFloat(this.value);
+            if (!isNaN(val) && val >= parseFloat(priceSlider.min) && val <= parseFloat(priceSlider.max)) {
+                priceSlider.value = val;
+                currentSliderValueDisplay.textContent = `${val.toFixed(2)}`;
+            } else {
+                currentSliderValueDisplay.textContent = ''; // Clear if invalid
+            }
+        });
+
+        // Add event listeners to ticker and date inputs
+        transactionTickerInput.addEventListener('change', fetchHistoricalPrices);
+        transactionDateInput.addEventListener('change', fetchHistoricalPrices);
+        transactionTickerInput.addEventListener('input', fetchHistoricalPrices); // For immediate feedback
+
         // Function to open the modal
         function openAddTransactionModal() {
             var modal = document.getElementById("addTransactionModal");
