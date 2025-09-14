@@ -282,8 +282,9 @@
                     <div class="action-menu">
                         <button class="action-menu-button" onclick="toggleMenu(event, '{{ item.tickersymbol }}')">&#8942;</button>
                         <div id="menu-{{ item.tickersymbol }}" class="action-menu-content">
-                            <a href="#" onclick="openHistoryModal('{{ item.tickersymbol }}')">Transaction History</a>
                             <a href="#" onclick="openLotDetailsModal('{{ item.tickersymbol }}')">Lot Details</a>
+                            <a href="#" onclick="openHistoryModal('{{ item.tickersymbol }}')">Transaction History</a>
+                            <a href="{{ url_for('transactions', open_modal='true', ticker=item.tickersymbol) }}">Add New Transaction</a>
                         </div>
                     </div>
                 </div>

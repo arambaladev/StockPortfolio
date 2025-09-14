@@ -371,7 +371,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('open_modal') === 'true') {
+                const ticker = urlParams.get('ticker');
+                if (ticker) {
+                    document.getElementById('tickersymbol').value = ticker;
+                }
                 openAddTransactionModal();
+                fetchHistoricalPrices(); // Fetch prices for the pre-filled ticker
             }
 
             const addTransactionForm = document.getElementById('addTransactionForm');
@@ -385,14 +390,15 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(err => {
-                            throw new Error(err.error || 'An unknown error occurred.');
-                        });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // On success, redirect to the portfolio page
+                        window.location.href = data.redirect_url;
+                    } else {
+                        // This 'else' block handles non-OK responses that are still JSON
+                        throw new Error(data.error || 'An unknown error occurred.');
                     }
-                    // If response is ok, reload the page to see the new transaction
-                    window.location.reload();
                 })
                 .catch(error => {
                     showCustomAlert(error.message); // Display the error message in a custom pop-up

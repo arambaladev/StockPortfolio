@@ -612,7 +612,7 @@ def add_transaction():
         db.session.commit() # Commit all price changes
 
         update_portfolio(tickersymbol, session['user_id'])
-        return redirect(url_for('transactions'))
+        return jsonify({'success': True, 'redirect_url': url_for('index')})
     
     stocks = Stock.query.all()
     return render_template('add_transaction.html', stocks=stocks)
@@ -829,6 +829,9 @@ def lot_details(tickersymbol):
                     lot['balance_xirr'] = calculate_xirr(balance_cash_flows, balance_dates)
             except Exception as e:
                 print(f"Error calculating XIRR for lot balance: {e}")
+
+    # Sort lots by purchase date in descending order as requested
+    lots.sort(key=lambda x: x['date'], reverse=True)
 
     # Render a partial template to get the HTML for the lot details
     lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price)
