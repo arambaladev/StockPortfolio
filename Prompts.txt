@@ -101,4 +101,17 @@ In the Add New Transaction pop-up, when a user sells a stock with quantity less 
 Let the alert comes from the app not from the browser
 
 
+----
+
+In the index.html at the portfolio table, please have a three horizontal lines or three vertical dots type image at the right end for every row. On clicking that, it should display two items which can be clicked. The item texts are "Transaction History" and "Lot Details". We will implement the actions on clicking them later
+
+A new colum has been added for 3 dots. Instead, can you have that icon in the first column itself - at the right side of the ticker symbol cell
+Good.. let us implement Lot details: Can you implement the "Lot Details" link to show the purchase lots (FIFO) for the current holdings?
+
+Let us show few more info at Lot details. The table should display "Purchase Date", "Purcahsed quantity"(meaning original purchased quantity), "Balance Quantity" (Current balance of this lot after subtracting the sale quantity using FIFO), Purchase Price, Cost Basis, Latest Price, UnRealized Gain
+Good.. Forget to add Current Value just before UnRealized gain. Current Value is nothing but the balance quantity * latest price of the stock
+Lot size Panel width sesm to be smaller than table.. the last column went out - Cn U pl. fix?
+
+----
+
 

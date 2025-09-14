@@ -20,28 +20,19 @@
             text-align: left;
             padding: 8px;
         }
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        .message {
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-        }
-        .message.success {
-            background-color: #d4edda;
+        #custom-alert {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #d4edda; /* Green for success */
             color: #155724;
-            border-color: #c3e6cb;
-        }
-        .message.danger {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-color: #f5c6cb;
-        }
-        .message.info {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            border-color: #bee5eb;
+            padding: 15px;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            z-index: 1002;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
         .header-container {
             display: flex;
@@ -75,9 +66,148 @@
             align-items: center;
             width: 100%;
         }
+        /* Dropdown menu styles */
+        .action-menu {
+            position: relative;
+            display: inline-block;
+        }
+
+        .action-menu-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 1;
+            padding: 0 5px;
+        }
+
+        .action-menu-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 4px;
+        }
+
+        .action-menu-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+
+        .action-menu-content a:hover {background-color: #f1f1f1}
+
+        .ticker-cell {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Modal styles for Transaction History */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 0;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 700px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+        }
+
+        .modal-content.wide {
+            max-width: 900px; /* Wider modal for lot details */
+        }
+
+        .modal-header {
+            padding: 10px 20px;
+            background-color: maroon;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close-button {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: #ccc;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .history-table th, .history-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .history-table th {
+            background-color: #f2f2f2;
+        }
+        .history-table .buy-row {
+            background-color: #d4edda; /* Light green */
+        }
+        .history-table .sell-row {
+            background-color: #f8d7da; /* Light red/pink */
+        }
+
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .pagination a, .pagination span {
+            color: #007bff;
+            padding: 8px 12px;
+            text-decoration: none;
+            border: 1px solid #ddd;
+            margin: 0 2px;
+            border-radius: 4px;
+        }
+        .pagination span.current { background-color: #007bff; color: white; }
+        .pagination span.disabled { color: #ccc; }
+        .pagination a:hover { background-color: #f0f0f0; }
     </style>
 </head>
 <body>
+    <div id="custom-alert"></div>
     <div class="header-container">
         <h1>Stock Portfolio</h1>
         <div class="auth-links">
@@ -90,15 +220,6 @@
             {% endif %}
         </div>
     </div>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="messages">
-                {% for category, message in messages %}
-                    <div class="message {{ category }}">{{ message }}</div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
         <h2 style="text-align: left; margin-top: 0; margin-bottom: 0;">Current Value: ${{ total_portfolio_value|format_currency }}</h2>
@@ -148,7 +269,18 @@
         </tr>
         {% for item in portfolio_data %}
         <tr>
-            <td>{{ item.tickersymbol }}</td>
+            <td>
+                <div class="ticker-cell">
+                    <span>{{ item.tickersymbol }}</span>
+                    <div class="action-menu">
+                        <button class="action-menu-button" onclick="toggleMenu(event, '{{ item.tickersymbol }}')">&#8942;</button>
+                        <div id="menu-{{ item.tickersymbol }}" class="action-menu-content">
+                            <a href="#" onclick="openHistoryModal('{{ item.tickersymbol }}')">Transaction History</a>
+                            <a href="#" onclick="openLotDetailsModal('{{ item.tickersymbol }}')">Lot Details</a>
+                        </div>
+                    </div>
+                </div>
+            </td>
             <td>{{ item.quantity }}</td>
             <td>${{ item.latest_price|format_currency }}</td>
             <td>${{ item.cost_basis|format_currency }}</td>
@@ -188,8 +320,49 @@
         <canvas id="portfolioChart"></canvas>
     </div>
 
+    <!-- Transaction History Modal -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="historyModalTitle">Transaction History</h2>
+                <span class="close-button" onclick="closeHistoryModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="historyModalBody">
+                <!-- Content will be loaded here via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Lot Details Modal -->
+    <div id="lotDetailsModal" class="modal">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h2 id="lotDetailsModalTitle">Lot Details</h2>
+                <span class="close-button" onclick="closeLotDetailsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="lotDetailsModalBody">
+                <!-- Content will be loaded here via JavaScript -->
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Custom alert for login
+            function showCustomAlert(message) {
+                const alertBox = document.getElementById('custom-alert');
+                alertBox.textContent = message;
+                alertBox.style.display = 'block';
+
+                setTimeout(() => {
+                    alertBox.style.display = 'none';
+                }, 3000); // Hide after 3 seconds
+            }
+
+            {% if login_success %}
+                showCustomAlert('Logged in successfully!');
+            {% endif %}
+
             const ctx = document.getElementById('portfolioChart').getContext('2d');
             const portfolioData = {{ portfolio_data|tojson }};
     
@@ -224,6 +397,94 @@
                     }
                 }
             });
+
+            // JavaScript for the action menu
+            window.toggleMenu = function(event, tickersymbol) {
+                event.stopPropagation(); // Prevent window.onclick from closing it immediately
+                closeAllMenus(); // Close other open menus
+                document.getElementById("menu-" + tickersymbol).style.display = "block";
+            }
+
+            function closeAllMenus() {
+                var menus = document.getElementsByClassName("action-menu-content");
+                for (var i = 0; i < menus.length; i++) {
+                    menus[i].style.display = 'none';
+                }
+            }
+
+            // Close the dropdown if the user clicks outside of it
+            window.onclick = function(event) {
+                if (!event.target.matches('.action-menu-button')) {
+                    closeAllMenus();
+                }
+            }
+
+            // --- Transaction History Modal ---
+            const historyModal = document.getElementById('historyModal');
+
+            window.openHistoryModal = function(tickersymbol) {
+                document.getElementById('historyModalTitle').innerText = `Transaction History for ${tickersymbol}`;
+                fetchHistory(tickersymbol, 1); // Fetch first page
+                historyModal.style.display = 'block';
+            }
+
+            window.closeHistoryModal = function() {
+                historyModal.style.display = 'none';
+                document.getElementById('historyModalBody').innerHTML = 'Loading...'; // Reset body
+            }
+
+            window.fetchHistory = function(tickersymbol, page) {
+                fetch(`/transaction_history/${tickersymbol}?page=${page}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('historyModalBody').innerHTML = data.html;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching transaction history:', error);
+                        document.getElementById('historyModalBody').innerHTML = '<p>Error loading transaction history.</p>';
+                    });
+            }
+
+            // Close modal if user clicks outside of the modal content
+            window.addEventListener('click', function(event) {
+                if (event.target == historyModal) {
+                    closeHistoryModal();
+                }
+            });
+
+            // --- Lot Details Modal ---
+            const lotDetailsModal = document.getElementById('lotDetailsModal');
+
+            window.openLotDetailsModal = function(tickersymbol) {
+                document.getElementById('lotDetailsModalTitle').innerText = `Lot Details for ${tickersymbol}`;
+                fetchLotDetails(tickersymbol);
+                lotDetailsModal.style.display = 'block';
+            }
+
+            window.closeLotDetailsModal = function() {
+                lotDetailsModal.style.display = 'none';
+                document.getElementById('lotDetailsModalBody').innerHTML = 'Loading...'; // Reset body
+            }
+
+            window.fetchLotDetails = function(tickersymbol) {
+                fetch(`/lot_details/${tickersymbol}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('lotDetailsModalBody').innerHTML = data.html;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching lot details:', error);
+                        document.getElementById('lotDetailsModalBody').innerHTML = '<p>Error loading lot details.</p>';
+                    });
+            }
+
+            // Close modal if user clicks outside of the modal content
+            window.addEventListener('click', function(event) {
+                if (event.target == lotDetailsModal) {
+                    closeLotDetailsModal();
+                }
+            });
+
         });
     </script>
 </body>

@@ -1,0 +1,38 @@
+<table class="history-table">
+    <thead>
+        <tr>
+            <th>Purchase Date</th>
+            <th>Purchased Qty</th>
+            <th>Balance Qty</th>
+            <th>Purchase Price</th>
+            <th>Cost Basis</th>
+            <th>Current Value</th>
+            <th>Latest Price</th>
+            <th>Unrealized Gain/Loss</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if lots %}
+            {% for lot in lots %}
+            <tr>
+                <td>{{ lot.date }}</td>
+                <td>{{ lot.purchased_quantity }}</td>
+                <td>{{ lot.balance_quantity }}</td>
+                <td>${{ lot.price|format_currency }}</td>
+                <td>${{ lot.cost_basis|format_currency }}</td>
+                <td>${{ lot.current_value|format_currency }}</td>
+                <td>${{ latest_price|format_currency }}</td>
+                <td>
+                    {% if lot.unrealized_gain >= 0 %}
+                        <span style="color: green;">${{ lot.unrealized_gain|format_currency }}</span>
+                    {% else %}
+                        <span style="color: red;">${{ lot.unrealized_gain|format_currency }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr><td colspan="8" style="text-align: center;">No outstanding lots for this holding.</td></tr>
+        {% endif %}
+    </tbody>
+</table>

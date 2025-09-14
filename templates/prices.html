@@ -59,6 +59,33 @@
             text-decoration: none;
             cursor: pointer;
         }
+        /* Spinner styles */
+        #spinner-overlay {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+            z-index: 1002; /* Above other content but below modal if any */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .spinner {
+            border: 8px solid #f3f3f3; /* Light grey */
+            border-top: 8px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.5s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -69,7 +96,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-home"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             </button>
         </a>
-        <a href="{{ url_for('update_prices_from_google') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px;">Update Prices</button></a>
+        <a id="updatePricesLink" href="{{ url_for('update_prices_from_google') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-left: 10px;">Update Prices</button></a>
         <button onclick="openAddPriceModal()" style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Price</button>
     </div>
     <table>
@@ -124,6 +151,10 @@
         </div>
     </div>
 
+    <div id="spinner-overlay">
+        <div class="spinner"></div>
+    </div>
+
     <script>
         // Get the modal
         var modal = document.getElementById("addPriceModal");
@@ -144,6 +175,13 @@
                 modal.style.display = "none";
             }
         }
+
+        // Show spinner on "Update Prices" click
+        document.getElementById('updatePricesLink').addEventListener('click', function() {
+            // Show the spinner overlay
+            const spinnerOverlay = document.getElementById('spinner-overlay');
+            spinnerOverlay.style.display = 'flex';
+        });
     </script>
 </body>
 </html>

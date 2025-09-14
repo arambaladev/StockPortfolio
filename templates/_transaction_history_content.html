@@ -1,0 +1,48 @@
+<table class="history-table">
+    <thead>
+        <tr>
+            <th>Operation</th>
+            <th>Quantity</th>
+            <th>Date</th>
+            <th>Price</th>
+            <th>Total Value</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for transaction in transactions %}
+        <tr class="{{ 'buy-row' if transaction.operation == 'Buy' else 'sell-row' }}">
+            <td>{{ transaction.operation }}</td>
+            <td>{{ transaction.quantity }}</td>
+            <td>{{ transaction.date }}</td>
+            <td>${{ transaction.price|format_currency }}</td>
+            <td>${{ (transaction.quantity * transaction.price)|format_currency }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    {% if pagination.has_prev %}
+        <a href="#" onclick="fetchHistory('{{ tickersymbol }}', {{ pagination.prev_num }}); return false;">&laquo; Previous</a>
+    {% else %}
+        <span class="disabled">&laquo; Previous</span>
+    {% endif %}
+
+    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+        {% if page_num %}
+            {% if pagination.page == page_num %}
+                <span class="current">{{ page_num }}</span>
+            {% else %}
+                <a href="#" onclick="fetchHistory('{{ tickersymbol }}', {{ page_num }}); return false;">{{ page_num }}</a>
+            {% endif %}
+        {% else %}
+            <span class="dots">...</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+        <a href="#" onclick="fetchHistory('{{ tickersymbol }}', {{ pagination.next_num }}); return false;">Next &raquo;</a>
+    {% else %}
+        <span class="disabled">Next &raquo;</span>
+    {% endif %}
+</div>

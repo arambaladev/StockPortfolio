@@ -154,9 +154,8 @@ def login():
             session['user_id'] = user.id
             session['username'] = user.username
             session['is_admin'] = user.is_admin
-            update_user_portfolio_prices(user.id) # Update prices for the logged-in user
-            flash('Logged in successfully!', 'success')
-            return redirect(url_for('index'))
+            update_user_portfolio_prices(user.id)
+            return redirect(url_for('index', login_success='true'))
         else:
             flash('Invalid username or password.', 'danger')
     return render_template('login.html')
@@ -189,6 +188,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    login_success = request.args.get('login_success') == 'true'
     sort_by = request.args.get('sort_by', 'value') # Default sort by value
     order = request.args.get('order', 'desc') # Default order descending
     reverse = (order == 'desc')
@@ -263,7 +263,7 @@ def index():
     print(f"DEBUG: portfolio_data: {portfolio_data}")
     print(f"DEBUG: total_invested_amount: {total_invested_amount}") # Debug print for invested amount
 
-    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value, total_invested_amount=total_invested_amount)
+    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value, total_invested_amount=total_invested_amount, login_success=login_success)
 
 @app.route('/add', methods=['GET', 'POST'])
 @admin_required
@@ -716,6 +716,66 @@ def get_historical_prices():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/transaction_history/<string:tickersymbol>')
+@login_required
+def transaction_history(tickersymbol):
+    page = request.args.get('page', 1, type=int)
+    per_page = 5 # Page size of 5 as requested
+
+    pagination = Transaction.query.filter_by(
+        user_id=session['user_id'],
+        tickersymbol=tickersymbol
+    ).order_by(Transaction.date.desc(), Transaction.id.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    transactions = pagination.items
+    # Render a partial template to get the HTML for the transactions and pagination
+    history_html = render_template('_transaction_history_content.html', transactions=transactions, pagination=pagination, tickersymbol=tickersymbol)
+    return jsonify({'html': history_html})
+
+@app.route('/lot_details/<string:tickersymbol>')
+@login_required
+def lot_details(tickersymbol):
+    transactions = Transaction.query.filter_by(
+        user_id=session['user_id'],
+        tickersymbol=tickersymbol
+    ).order_by(Transaction.date, Transaction.id).all()
+
+    lots = []
+    # Get the latest price for the stock once
+    price_entry = Price.query.filter_by(tickersymbol=tickersymbol).order_by(Price.date.desc()).first()
+    latest_price = price_entry.price if price_entry else 0.0
+
+    for t in transactions:
+        if t.operation == 'Buy':
+            lots.append({
+                'purchased_quantity': t.quantity,
+                'balance_quantity': t.quantity, # Initially, balance is the same as purchased
+                'price': t.price,
+                'date': t.date
+            })
+        elif t.operation == 'Sell':
+            sell_quantity = t.quantity
+            while sell_quantity > 0 and lots:
+                oldest_lot = lots[0]
+                if oldest_lot['balance_quantity'] <= sell_quantity:
+                    sell_quantity -= oldest_lot['balance_quantity']
+                    lots.pop(0)
+                else:
+                    oldest_lot['balance_quantity'] -= sell_quantity
+                    sell_quantity = 0
+
+    # Calculate cost basis and unrealized gain for the remaining lots
+    for lot in lots:
+        lot['cost_basis'] = lot['balance_quantity'] * lot['price']
+        lot['current_value'] = lot['balance_quantity'] * latest_price
+        lot['unrealized_gain'] = (lot['balance_quantity'] * latest_price) - lot['cost_basis']
+
+    # Render a partial template to get the HTML for the lot details
+    lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price)
+    return jsonify({'html': lots_html})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
