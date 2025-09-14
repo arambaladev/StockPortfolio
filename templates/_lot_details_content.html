@@ -12,6 +12,9 @@
         margin: 10px 0 10px 30px; /* Indent the sub-table */
         width: calc(100% - 30px);
     }
+    .sold-lot-row {
+        background-color: #f2f2f2; /* Light gray for fully sold lots */
+    }
 </style>
 <table class="history-table">
     <thead>
@@ -30,11 +33,11 @@
     <tbody>
         {% if lots %}
             {% for lot in lots %}
-            <tr class="lot-main-row">
+            <tr class="lot-main-row {{ 'sold-lot-row' if lot.balance_quantity == 0 }}">
                 <td>{{ lot.date }}</td>
                 <td>{{ lot.purchased_quantity }}</td>
                 <td>
-                    {% if lot.purchased_quantity != lot.balance_quantity and lot.balance_quantity > 0 %}
+                    {% if lot.purchased_quantity != lot.balance_quantity %}
                         <span class="expand-icon" data-lot-id="{{ lot.id }}">[+]</span>
                     {% endif %}
                     {{ lot.balance_quantity }}
@@ -64,7 +67,7 @@
             </tr>
             {% if lot.sales_from_lot %}
                 <tr id="sales-{{ lot.id }}" class="sales-details-row">
-                    <td colspan="9">
+                    <td colspan="10">
                         <table class="history-table sales-details-table">
                             <thead>
                                 <tr style="background-color: #e9ecef;">
@@ -114,7 +117,7 @@
             {% endif %}
             {% endfor %}
         {% else %}
-            <tr><td colspan="9" style="text-align: center;">No outstanding lots for this holding.</td></tr>
+            <tr><td colspan="10" style="text-align: center;">No outstanding lots for this holding.</td></tr>
         {% endif %}
     </tbody>
 </table>

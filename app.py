@@ -757,22 +757,26 @@ def lot_details(tickersymbol):
     price_entry = Price.query.filter_by(tickersymbol=tickersymbol).order_by(Price.date.desc()).first()
     latest_price = price_entry.price if price_entry else 0.0
 
+    open_lots = [] # A queue to manage lots for selling
+
     for t in transactions:
         if t.operation == 'Buy':
-            lots.append({
+            new_lot = {
                 'id': f"lot-{t.date}-{t.id}", # Unique ID for the lot
                 'purchased_quantity': t.quantity,
                 'balance_quantity': t.quantity, # Initially, balance is the same as purchased
                 'price': t.price,
                 'date': t.date,
                 'sales_from_lot': [] # To track sales from this specific lot
-            })
+            }
+            lots.append(new_lot)
+            open_lots.append(new_lot)
         elif t.operation == 'Sell':
             sell_quantity = t.quantity
             sale_price = t.price
             sale_date = t.date # Capture the sale date
-            while sell_quantity > 0 and lots:
-                oldest_lot = lots[0]
+            while sell_quantity > 0 and open_lots:
+                oldest_lot = open_lots[0]
                 
                 quantity_from_lot = min(sell_quantity, oldest_lot['balance_quantity'])
 
@@ -804,7 +808,7 @@ def lot_details(tickersymbol):
                 sell_quantity -= quantity_from_lot
 
                 if oldest_lot['balance_quantity'] == 0:
-                    lots.pop(0)
+                    open_lots.pop(0) # Remove the fully sold lot from the open queue
 
     # Calculate cost basis and unrealized gain for the remaining lots
     for lot in lots:

@@ -113,5 +113,26 @@ Good.. Forget to add Current Value just before UnRealized gain. Current Value is
 Lot size Panel width sesm to be smaller than table.. the last column went out - Cn U pl. fix?
 
 ----
+In the Stock table, add one more column "Sector". In the populate_initial_stock(), get this info from yfinance and enter. Finally, at Stock page show the sector and Add/Edit stock - get this info from user as well
+In the Edit stock page, Can U pl. add SEctor as well
 
+Can you add a new chart to the home page showing portfolio allocation by Sector? It should be at the right side of Portfolio allocation chart
+
+In the Lot details, If Balance quantity is not same as Purchase quantity then, that means few of the purchased stocks in that Lot has been sold. Can we show those Sold stock details? The details we want to show for each sale txn: sold quantity, purchase price, purchase value, sale price, sale value, Realized gains. Suggest a way to show these details - it can be  sub row, another pop-up by clicking triple dot icon at some balance quantity cell
+
+Error loading lot details - jinja2.exceptions.UndefinedError: 'lot' is undefined - Can U pl. fix
+That problem is fixed. But, on clciking + icon, Nothing is happeneing - CAn U pl. fix
+Oops.. Not working yet
+not working still
+Working now thanks... One minor request: On clicking + icon, we get sale details - in that can we add one more column at the begining as Sale Date
+Looks good. One more req: Can you add XIRR for ech sale brekdown and also balance quantity in the Lot Details?
+getting an error: File "D:\Bala-Dev\Projects\StockPortfolio\app.py", line 800 'xirr': sale_xirr ^ SyntaxError: invalid syntax
+Looks good.. But, the colum heading for Realized P/L and Un Realized P/L can be changed to just "XIRR"
+Final one: Move this XIRR column as the last column
+----
+
+In the Lot Details pop-up, we dont show the details of the fully sold lots(where Balance quantity is zero). Can we show them as well?
+For fully sold lots, there is no + icon at balance quantity to get details of sale details - Can U pl. fix
+Lot Details shows empty/Loading under the following condition: If the txns are in following sequence: 1: Bought 100 stocks 2: sold 50 stocks 3. Bought 100 stocks - Can U pl. fix
+Superb!!! Thanks - will verify the calculation and come back
 
