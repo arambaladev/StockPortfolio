@@ -760,27 +760,71 @@ def lot_details(tickersymbol):
     for t in transactions:
         if t.operation == 'Buy':
             lots.append({
+                'id': f"lot-{t.date}-{t.id}", # Unique ID for the lot
                 'purchased_quantity': t.quantity,
                 'balance_quantity': t.quantity, # Initially, balance is the same as purchased
                 'price': t.price,
-                'date': t.date
+                'date': t.date,
+                'sales_from_lot': [] # To track sales from this specific lot
             })
         elif t.operation == 'Sell':
             sell_quantity = t.quantity
+            sale_price = t.price
+            sale_date = t.date # Capture the sale date
             while sell_quantity > 0 and lots:
                 oldest_lot = lots[0]
-                if oldest_lot['balance_quantity'] <= sell_quantity:
-                    sell_quantity -= oldest_lot['balance_quantity']
+                
+                quantity_from_lot = min(sell_quantity, oldest_lot['balance_quantity'])
+
+                purchase_price = oldest_lot['price']
+                realized_gain = (sale_price - purchase_price) * quantity_from_lot
+
+                # Calculate XIRR for this specific sale
+                sale_xirr = None
+                try:
+                    sale_cash_flows = [-(quantity_from_lot * purchase_price), quantity_from_lot * sale_price]
+                    sale_dates = [
+                        datetime.datetime.strptime(oldest_lot['date'], '%Y-%m-%d').date(),
+                        datetime.datetime.strptime(sale_date, '%Y-%m-%d').date()
+                    ]
+                    sale_xirr = calculate_xirr(sale_cash_flows, sale_dates)
+                except Exception as e:
+                    print(f"Error calculating XIRR for sale: {e}")
+
+                oldest_lot['sales_from_lot'].append({
+                    'sold_quantity': quantity_from_lot,
+                    'sale_date': sale_date,
+                    'purchase_price': purchase_price,
+                    'sale_price': sale_price,
+                    'realized_gain': realized_gain,
+                    'xirr': sale_xirr
+                })
+
+                oldest_lot['balance_quantity'] -= quantity_from_lot
+                sell_quantity -= quantity_from_lot
+
+                if oldest_lot['balance_quantity'] == 0:
                     lots.pop(0)
-                else:
-                    oldest_lot['balance_quantity'] -= sell_quantity
-                    sell_quantity = 0
 
     # Calculate cost basis and unrealized gain for the remaining lots
     for lot in lots:
         lot['cost_basis'] = lot['balance_quantity'] * lot['price']
         lot['current_value'] = lot['balance_quantity'] * latest_price
         lot['unrealized_gain'] = (lot['balance_quantity'] * latest_price) - lot['cost_basis']
+        
+        # Calculate XIRR for the remaining balance of the lot
+        lot['balance_xirr'] = None
+        if lot['balance_quantity'] > 0:
+            try:
+                balance_cash_flows = [-(lot['balance_quantity'] * lot['price']), lot['current_value']]
+                balance_dates = [
+                    datetime.datetime.strptime(lot['date'], '%Y-%m-%d').date(),
+                    datetime.date.today()
+                ]
+                if balance_dates[0] < balance_dates[1]: # XIRR needs at least two different dates
+                    lot['balance_xirr'] = calculate_xirr(balance_cash_flows, balance_dates)
+            except Exception as e:
+                print(f"Error calculating XIRR for lot balance: {e}")
 
     # Render a partial template to get the HTML for the lot details
     lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price)

@@ -1,3 +1,18 @@
+<style>
+    .expand-icon {
+        cursor: pointer;
+        font-weight: bold;
+        margin-right: 5px;
+        color: #007bff;
+    }
+    .sales-details-row {
+        display: none; /* Hidden by default */
+    }
+    .sales-details-table {
+        margin: 10px 0 10px 30px; /* Indent the sub-table */
+        width: calc(100% - 30px);
+    }
+</style>
 <table class="history-table">
     <thead>
         <tr>
@@ -9,15 +24,21 @@
             <th>Current Value</th>
             <th>Latest Price</th>
             <th>Unrealized Gain/Loss</th>
+            <th>XIRR</th>
         </tr>
     </thead>
     <tbody>
         {% if lots %}
             {% for lot in lots %}
-            <tr>
+            <tr class="lot-main-row">
                 <td>{{ lot.date }}</td>
                 <td>{{ lot.purchased_quantity }}</td>
-                <td>{{ lot.balance_quantity }}</td>
+                <td>
+                    {% if lot.purchased_quantity != lot.balance_quantity and lot.balance_quantity > 0 %}
+                        <span class="expand-icon" data-lot-id="{{ lot.id }}">[+]</span>
+                    {% endif %}
+                    {{ lot.balance_quantity }}
+                </td>
                 <td>${{ lot.price|format_currency }}</td>
                 <td>${{ lot.cost_basis|format_currency }}</td>
                 <td>${{ lot.current_value|format_currency }}</td>
@@ -29,10 +50,71 @@
                         <span style="color: red;">${{ lot.unrealized_gain|format_currency }}</span>
                     {% endif %}
                 </td>
+                <td>
+                    {% if lot.balance_xirr is not none %}
+                        {% if lot.balance_xirr >= 0 %}
+                            <span style="color: green;">{{ "%.2f"|format(lot.balance_xirr * 100) }}%</span>
+                        {% else %}
+                            <span style="color: red;">{{ "%.2f"|format(lot.balance_xirr * 100) }}%</span>
+                        {% endif %}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
             </tr>
+            {% if lot.sales_from_lot %}
+                <tr id="sales-{{ lot.id }}" class="sales-details-row">
+                    <td colspan="9">
+                        <table class="history-table sales-details-table">
+                            <thead>
+                                <tr style="background-color: #e9ecef;">
+                                <th>Sale Date</th>
+                                    <th>Sold Qty</th>
+                                    <th>Purchase Price</th>
+                                    <th>Purchase Value</th>
+                                    <th>Sale Price</th>
+                                    <th>Sale Value</th>
+                                    <th>Realized Gain/Loss</th>
+                                    <th>XIRR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sale in lot.sales_from_lot %}
+                                <tr>
+                                <td>{{ sale.sale_date }}</td>
+                                    <td>{{ sale.sold_quantity }}</td>
+                                    <td>${{ sale.purchase_price|format_currency }}</td>
+                                    <td>${{ (sale.sold_quantity * sale.purchase_price)|format_currency }}</td>
+                                    <td>${{ sale.sale_price|format_currency }}</td>
+                                    <td>${{ (sale.sold_quantity * sale.sale_price)|format_currency }}</td>
+                                    <td>
+                                        {% if sale.realized_gain >= 0 %}
+                                            <span style="color: green;">${{ sale.realized_gain|format_currency }}</span>
+                                        {% else %}
+                                            <span style="color: red;">${{ sale.realized_gain|format_currency }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sale.xirr is not none %}
+                                            {% if sale.xirr >= 0 %}
+                                                <span style="color: green;">{{ "%.2f"|format(sale.xirr * 100) }}%</span>
+                                            {% else %}
+                                                <span style="color: red;">{{ "%.2f"|format(sale.xirr * 100) }}%</span>
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+            {% endif %}
             {% endfor %}
         {% else %}
-            <tr><td colspan="8" style="text-align: center;">No outstanding lots for this holding.</td></tr>
+            <tr><td colspan="9" style="text-align: center;">No outstanding lots for this holding.</td></tr>
         {% endif %}
     </tbody>
 </table>

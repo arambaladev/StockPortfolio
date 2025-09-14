@@ -500,6 +500,28 @@
             // --- Lot Details Modal ---
             const lotDetailsModal = document.getElementById('lotDetailsModal');
 
+            // Use event delegation for the dynamically loaded content in the lot details modal
+            const lotDetailsModalBody = document.getElementById('lotDetailsModalBody');
+            lotDetailsModalBody.addEventListener('click', function(event) {
+                const target = event.target;
+                // Check if the clicked element is our expand icon
+                if (target && target.classList.contains('expand-icon')) {
+                    const lotId = target.getAttribute('data-lot-id');
+                    if (lotId) {
+                        const salesRow = document.getElementById('sales-' + lotId);
+                        if (salesRow) {
+                            if (salesRow.style.display === 'none' || salesRow.style.display === '') {
+                                salesRow.style.display = 'table-row';
+                                target.textContent = '[-]';
+                            } else {
+                                salesRow.style.display = 'none';
+                                target.textContent = '[+]';
+                            }
+                        }
+                    }
+                }
+            });
+
             window.openLotDetailsModal = function(tickersymbol) {
                 document.getElementById('lotDetailsModalTitle').innerText = `Lot Details for ${tickersymbol}`;
                 fetchLotDetails(tickersymbol);
@@ -529,7 +551,6 @@
                     closeLotDetailsModal();
                 }
             });
-
         });
     </script>
 </body>
