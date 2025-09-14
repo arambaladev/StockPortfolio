@@ -3,6 +3,7 @@ from models import db, Stock, Transaction, Portfolio, Price, User
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from models import db, Stock, Transaction, Portfolio, Price
+from dotenv import load_dotenv
 import os
 import random
 import datetime
@@ -46,7 +47,7 @@ def calculate_xirr(cash_flows, dates, guess=0.1):
         # Calculate derivative of NPV
         deriv_npv = 0
         min_date = min(dates)
-        for j in range(len(cash_flows)):
+        for j in range(len(cash_flows)):            
             days = (dates[j] - min_date).days
             if days == 0: # Avoid division by zero for the first cash flow
                 continue
@@ -61,12 +62,33 @@ def calculate_xirr(cash_flows, dates, guess=0.1):
     
     return None # Did not converge
 
+load_dotenv() # Load environment variables from .env file
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key' # Replace with a strong secret key
 
 # Configure the database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stocks.db'
+# Database configuration from environment variables
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_DSN = os.getenv('DB_DSN')
+WALLET_PASSWORD = os.getenv('WALLET_PASSWORD')
+WALLET_LOCATION = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wallet')
+
+# Use this for SQLite
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stocks.db'
+
+# Use this for Oracle Autonomous Database
+app.config['SQLALCHEMY_DATABASE_URI'] = f'oracle+oracledb://{DB_USER}:{DB_PASSWORD}@{DB_DSN}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'connect_args': {
+        'config_dir': WALLET_LOCATION,
+        'wallet_location': WALLET_LOCATION,
+        'wallet_password': WALLET_PASSWORD
+    }
+}
+# Autonomous DB Config Ends
 db.init_app(app)
 
 # Sample list of high-volume tickers (for demonstration)
@@ -120,12 +142,6 @@ def create_admin_user():
             db.session.add(new_admin)
             db.session.commit()
             print("Admin user 'admin' created.")
-
-# Create the database tables
-with app.app_context():
-    db.create_all()
-    populate_initial_stocks()
-    create_admin_user()
 
 def login_required(f):
     @wraps(f)

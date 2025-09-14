@@ -136,3 +136,24 @@ For fully sold lots, there is no + icon at balance quantity to get details of sa
 Lot Details shows empty/Loading under the following condition: If the txns are in following sequence: 1: Bought 100 stocks 2: sold 50 stocks 3. Bought 100 stocks - Can U pl. fix
 Superb!!! Thanks - will verify the calculation and come back
 
+----
+One more feature: In the Portfolio table at teh first colum - ticker symbol - we have triple dot icon which will show drop down of Transation history and Lot details. Can U add one more item there as "Add New Transaction". On clicking it, it should do the exact same operation of "+ Add New Transacction" at the Transactions Page.
+
+===> It responded with the following text 
+/
+
+Of course! Adding a shortcut to "Add New Transaction" directly from the portfolio table is a great way to improve workflow and make the application more convenient to use.
+
+I'll add the "Add New Transaction" link to the action menu. When clicked, it will redirect the user to the transactions.html page and automatically open the "Add New Transaction" modal, pre-filling the ticker symbol from the row that was clicked.
+/
+
+How beautifully it understood my intention :-)
+
+===>
+Good... two minor enhancements: 1. After submit for adding new transaction, the pop-up doesnt close. It should close. 2. Better, we are taken back to Portfolio page than Transactions Page
+Good - nother req: In the lot details pop-up, Can U sort the rows by descending order of Purchse date
+
+In the Portfolio table at the  first column - ticker symbol - we have triple dot icon which lists "Transaction History", Add New Transacction and Lot Details in that order. I want to change that order. Can U change it to "Lot Details" at the top, Next is Transaction History and Add New Transaction be at the last
+
+
+

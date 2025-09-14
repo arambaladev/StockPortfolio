@@ -2,6 +2,7 @@
 .gitignore
 __pycache__/
 instance/
+wallet/
 *.pyc
 *.db
 Dockerfile

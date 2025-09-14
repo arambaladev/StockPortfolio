@@ -1,9 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Sequence
 
 db = SQLAlchemy()
 
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, Sequence('user_id_seq'), primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
@@ -12,7 +13,7 @@ class User(db.Model):
         return f'<User {self.username}>'
 
 class Stock(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, Sequence('stock_id_seq'), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     tickersymbol = db.Column(db.String(20), nullable=False, unique=True)
     exchange = db.Column(db.String(50), nullable=False, default='NYSE')
@@ -23,7 +24,7 @@ class Stock(db.Model):
         return f'<Stock {self.tickersymbol}>'
 
 class Transaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, Sequence('transaction_id_seq'), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     tickersymbol = db.Column(db.String(20), db.ForeignKey('stock.tickersymbol'), nullable=False)
     operation = db.Column(db.String(4), nullable=False, default='Buy')
@@ -46,7 +47,7 @@ class Portfolio(db.Model):
         return f'<Portfolio {self.tickersymbol}>'
 
 class Price(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, Sequence('price_id_seq'), primary_key=True)
     tickersymbol = db.Column(db.String(20), db.ForeignKey('stock.tickersymbol'), nullable=False)
     date = db.Column(db.String(20), nullable=False)
     price = db.Column(db.Float, nullable=False)
