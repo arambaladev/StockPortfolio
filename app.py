@@ -105,6 +105,11 @@ def populate_initial_stocks():
     # db.session.commit() # Removed as commit is now inside the loop
     print("Initial stock population complete.")
 
+@app.template_filter('format_currency')
+def format_currency(value):
+    """Format a value as currency with comma separators."""
+    return "{:,.2f}".format(value)
+
 def create_admin_user():
     with app.app_context():
         admin_user = User.query.filter_by(username='admin').first()
@@ -184,6 +189,10 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    sort_by = request.args.get('sort_by', 'value') # Default sort by value
+    order = request.args.get('order', 'desc') # Default order descending
+    reverse = (order == 'desc')
+
     portfolio_items = Portfolio.query.filter_by(user_id=session['user_id']).all()
     portfolio_data = []
     total_portfolio_value = 0.0
@@ -242,6 +251,13 @@ def index():
     if total_portfolio_value > 0:
         for item in portfolio_data:
             item['percentage'] = (item['value'] / total_portfolio_value) * 100
+
+    # Sort the portfolio data based on query parameters
+    if portfolio_data and sort_by in portfolio_data[0]:
+        portfolio_data.sort(key=lambda x: x[sort_by], reverse=reverse)
+    else:
+        # Default sort if key is invalid
+        portfolio_data.sort(key=lambda x: x['value'], reverse=True)
 
     print(f"DEBUG: total_portfolio_value: {total_portfolio_value}")
     print(f"DEBUG: portfolio_data: {portfolio_data}")
@@ -441,11 +457,14 @@ def calculate_fifo_cost_basis(tickersymbol, user_id, current_quantity):
 @app.route('/transactions')
 @login_required
 def transactions():
-    transactions = Transaction.query.filter_by(user_id=session['user_id']).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 15 # You can adjust this number
+    pagination = Transaction.query.filter_by(user_id=session['user_id']).order_by(Transaction.date.desc(), Transaction.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    transactions = pagination.items
     stocks = Stock.query.order_by(Stock.tickersymbol).all() # Fetch all stocks, ordered alphabetically
     # Determine the latest ticker symbol for defaulting. Assuming latest means last alphabetically.
     latest_tickersymbol = stocks[-1].tickersymbol if stocks else ''
-    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol)
+    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol, pagination=pagination)
 
 @app.route('/prices')
 @admin_required

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Stock Portfolio</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -61,6 +62,19 @@
         .auth-links a:hover {
             text-decoration: underline;
         }
+        th a {
+            color: white;
+            text-decoration: none;
+        }
+        th a:hover {
+            text-decoration: underline;
+        }
+        th a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -87,34 +101,74 @@
     {% endwith %}
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-        <h2 style="text-align: left; margin-top: 0; margin-bottom: 0;">Current Value: ${{ "%.2f"|format(total_portfolio_value) }}</h2>
+        <h2 style="text-align: left; margin-top: 0; margin-bottom: 0;">Current Value: ${{ total_portfolio_value|format_currency }}</h2>
         <a href="{{ url_for('transactions', open_modal=true) }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Transactions</button></a>
     </div>
     <div style="text-align: left; margin-top: -10px; margin-bottom: 15px;">
-        <span style="font-size: 0.9em; font-style: italic;">Invested Amount: ${{ "%.2f"|format(total_invested_amount) }}</span>
+        <span style="font-size: 0.9em; font-style: italic;">Invested Amount: ${{ total_invested_amount|format_currency }}</span>
+        {% set gain_loss = total_portfolio_value - total_invested_amount %}
+        <span style="font-size: 0.9em; font-style: italic; margin-left: 20px;">
+            Total Gain/Loss: 
+            {% if gain_loss >= 0 %}
+                <span style="color: green;">${{ gain_loss|format_currency }}</span>
+            {% else %}
+                <span style="color: red;">${{ gain_loss|format_currency }}</span>
+            {% endif %}
+        </span>
     </div>
+
+    {% set sort_by = request.args.get('sort_by', 'value') %}
+    {% set order = request.args.get('order', 'desc') %}
 
     <table>
         <tr>
-            <th style="background-color: maroon; color: white;">Ticker Symbol</th>
-            <th style="background-color: maroon; color: white;">Quantity</th>
-            <th style="background-color: maroon; color: white;">Latest Price</th>
-            <th style="background-color: maroon; color: white;">Cost Basis</th>
-            <th style="background-color: maroon; color: white;">Current Value</th>
-            <th style="background-color: maroon; color: white;">% of Portfolio</th>
-            <th style="background-color: maroon; color: white;">XIRR</th>
+            {% macro sortable_th(column, display_name) %}
+                {% set new_order = 'asc' if sort_by == column and order == 'desc' else 'desc' %}
+                <th style="background-color: maroon; color: white;">
+                    <a href="{{ url_for('index', sort_by=column, order=new_order) }}">
+                        <span>{{ display_name }}</span>
+                        <span>
+                            {% if sort_by == column %}
+                                {{ '▼' if order == 'desc' else '▲' }}
+                            {% else %}
+                                <span style="color: #ccc;">▲▼</span>
+                            {% endif %}
+                        </span>
+                    </a>
+                </th>
+            {% endmacro %}
+            {{ sortable_th('tickersymbol', 'Ticker Symbol') }}
+            {{ sortable_th('quantity', 'Quantity') }}
+            {{ sortable_th('latest_price', 'Latest Price') }}
+            {{ sortable_th('cost_basis', 'Cost Basis') }}
+            {{ sortable_th('value', 'Current Value') }}
+            <th style="background-color: maroon; color: white;">Gain/Loss</th> {# Not sortable as it's calculated in template #}
+            {{ sortable_th('percentage', '% of Portfolio') }}
+            {{ sortable_th('xirr', 'XIRR') }}
         </tr>
         {% for item in portfolio_data %}
         <tr>
             <td>{{ item.tickersymbol }}</td>
             <td>{{ item.quantity }}</td>
-            <td>${{ "%.2f"|format(item.latest_price) }}</td>
-            <td>${{ "%.2f"|format(item.cost_basis) }}</td>
-            <td>${{ "%.2f"|format(item.value) }}</td>
+            <td>${{ item.latest_price|format_currency }}</td>
+            <td>${{ item.cost_basis|format_currency }}</td>
+            <td>${{ item.value|format_currency }}</td>
+            <td>
+                {% set item_gain_loss = item.value - item.cost_basis %}
+                {% if item_gain_loss >= 0 %}
+                    <span style="color: green;">${{ item_gain_loss|format_currency }}</span>
+                {% else %}
+                    <span style="color: red;">${{ item_gain_loss|format_currency }}</span>
+                {% endif %}
+            </td>
             <td>{{ "%.2f"|format(item.percentage) }}%</td>
             <td>
                 {% if item.xirr is not none %}
-                    {{ "%.2f"|format(item.xirr * 100) }}%
+                    {% if item.xirr >= 0 %}
+                        <span style="color: green;">{{ "%.2f"|format(item.xirr * 100) }}%</span>
+                    {% else %}
+                        <span style="color: red;">{{ "%.2f"|format(item.xirr * 100) }}%</span>
+                    {% endif %}
                 {% else %}
                     N/A
                 {% endif %}
@@ -129,5 +183,48 @@
         <a href="{{ url_for('prices') }}"><button style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">Prices</button></a>
         {% endif %}
     </div>
+
+    <div style="width: 50%; max-width: 400px; margin: 40px auto 20px auto;">
+        <canvas id="portfolioChart"></canvas>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('portfolioChart').getContext('2d');
+            const portfolioData = {{ portfolio_data|tojson }};
+    
+            const labels = portfolioData.map(item => item.tickersymbol);
+            const data = portfolioData.map(item => item.value);
+    
+            // Generate random colors for the chart
+            const backgroundColors = data.map(() => `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`);
+    
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Portfolio Allocation by Value'
+                        }
+                    }
+                }
+            });
+        });
+    </script>
 </body>
 </html>
