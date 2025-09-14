@@ -16,6 +16,7 @@ class Stock(db.Model):
     name = db.Column(db.String(100), nullable=False)
     tickersymbol = db.Column(db.String(20), nullable=False, unique=True)
     exchange = db.Column(db.String(50), nullable=False, default='NYSE')
+    sector = db.Column(db.String(100), nullable=True) # Added sector column
     transactions = db.relationship('Transaction', backref='stock', lazy=True)
 
     def __repr__(self):

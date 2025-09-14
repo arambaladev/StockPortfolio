@@ -107,6 +107,13 @@
             align-items: center;
         }
 
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 40px;
+        }
+
         /* Modal styles for Transaction History */
         .modal {
             display: none;
@@ -316,8 +323,13 @@
         {% endif %}
     </div>
 
-    <div style="width: 50%; max-width: 400px; margin: 40px auto 20px auto;">
-        <canvas id="portfolioChart"></canvas>
+    <div class="chart-container">
+        <div style="width: 45%; max-width: 400px;">
+            <canvas id="stockAllocationChart"></canvas>
+        </div>
+        <div style="width: 45%; max-width: 400px;">
+            <canvas id="sectorAllocationChart"></canvas>
+        </div>
     </div>
 
     <!-- Transaction History Modal -->
@@ -363,16 +375,16 @@
                 showCustomAlert('Logged in successfully!');
             {% endif %}
 
-            const ctx = document.getElementById('portfolioChart').getContext('2d');
+            // --- Stock Allocation Chart ---
+            const stockCtx = document.getElementById('stockAllocationChart').getContext('2d');
             const portfolioData = {{ portfolio_data|tojson }};
     
             const labels = portfolioData.map(item => item.tickersymbol);
             const data = portfolioData.map(item => item.value);
     
-            // Generate random colors for the chart
-            const backgroundColors = data.map(() => `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 0.7)`);
+            const backgroundColors = data.map(() => `rgba(${Math.floor(Math.random() * 200) + 55}, ${Math.floor(Math.random() * 200) + 55}, ${Math.floor(Math.random() * 200) + 55}, 0.8)`);
     
-            new Chart(ctx, {
+            new Chart(stockCtx, {
                 type: 'pie',
                 data: {
                     labels: labels,
@@ -392,7 +404,40 @@
                         },
                         title: {
                             display: true,
-                            text: 'Portfolio Allocation by Value'
+                            text: 'Allocation by Stock'
+                        }
+                    }
+                }
+            });
+
+            // --- Sector Allocation Chart ---
+            const sectorCtx = document.getElementById('sectorAllocationChart').getContext('2d');
+            const sectorData = {{ sector_data|tojson }};
+
+            const sectorLabels = Object.keys(sectorData);
+            const sectorValues = Object.values(sectorData);
+
+            const sectorBackgroundColors = sectorValues.map(() => `rgba(${Math.floor(Math.random() * 200) + 55}, ${Math.floor(Math.random() * 200) + 55}, ${Math.floor(Math.random() * 200) + 55}, 0.8)`);
+
+            new Chart(sectorCtx, {
+                type: 'pie',
+                data: {
+                    labels: sectorLabels,
+                    datasets: [{
+                        label: 'Portfolio Value by Sector',
+                        data: sectorValues,
+                        backgroundColor: sectorBackgroundColors,
+                        borderColor: sectorBackgroundColors.map(color => color.replace('0.8', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: {
+                            display: true,
+                            text: 'Allocation by Sector'
                         }
                     }
                 }

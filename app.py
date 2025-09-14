@@ -94,9 +94,10 @@ def populate_initial_stocks():
                 # Fetch stock info to get a name, if possible
                 ticker_info = yf.Ticker(ticker_symbol).info
                 stock_name = ticker_info.get('longName', ticker_symbol)
-                exchange = ticker_info.get('exchange', 'N/A') # Default to N/A if not found
+                exchange = ticker_info.get('exchange', 'N/A')
+                sector = ticker_info.get('sector', 'N/A') # Get sector info
 
-                new_stock = Stock(name=stock_name, tickersymbol=ticker_symbol, exchange=exchange)
+                new_stock = Stock(name=stock_name, tickersymbol=ticker_symbol, exchange=exchange, sector=sector)
                 db.session.add(new_stock)
                 db.session.commit() # Commit inside loop to make each stock visible immediately
                 print(f"Added new stock: {ticker_symbol} - {stock_name}")
@@ -197,6 +198,7 @@ def index():
     portfolio_data = []
     total_portfolio_value = 0.0
     total_invested_amount = 0.0 # Initialize total invested amount
+    sector_data = {} # To hold value per sector
 
     for item in portfolio_items:
         # Get latest price from Price table for display in portfolio
@@ -204,6 +206,12 @@ def index():
         latest_price = price_entry.price if price_entry else 0.0
         item_value = item.quantity * latest_price
         total_portfolio_value += item_value
+
+        # Aggregate data for sector chart
+        stock_info = Stock.query.filter_by(tickersymbol=item.tickersymbol).first()
+        sector = stock_info.sector if stock_info and stock_info.sector else 'Uncategorized'
+        sector_data[sector] = sector_data.get(sector, 0) + item_value
+
 
         # Prepare data for XIRR calculation
         cash_flows = []
@@ -263,7 +271,7 @@ def index():
     print(f"DEBUG: portfolio_data: {portfolio_data}")
     print(f"DEBUG: total_invested_amount: {total_invested_amount}") # Debug print for invested amount
 
-    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value, total_invested_amount=total_invested_amount, login_success=login_success)
+    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value, total_invested_amount=total_invested_amount, login_success=login_success, sector_data=sector_data)
 
 @app.route('/add', methods=['GET', 'POST'])
 @admin_required
@@ -285,7 +293,7 @@ def add_stock():
         if not exchange:
             exchange = 'NYSE'
 
-        new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange)
+        new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange, sector=sector)
         db.session.add(new_stock)
         db.session.commit()
         return redirect(url_for('stocks_list')) # Redirect to stocks_list after adding
@@ -299,6 +307,7 @@ def edit_stock(id):
         stock.name = request.form['name']
         stock.tickersymbol = request.form['tickersymbol'].upper() # Convert to uppercase
         stock.exchange = request.form['exchange']
+        stock.sector = request.form['sector']
 
         # Validate ticker symbol using yfinance
         try:

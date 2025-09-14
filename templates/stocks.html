@@ -76,6 +76,7 @@
             <th style="background-color: maroon; color: white;">Name</th>
             <th style="background-color: maroon; color: white;">Ticker Symbol</th>
             <th style="background-color: maroon; color: white;">Exchange</th>
+            <th style="background-color: maroon; color: white;">Sector</th>
             <th style="width: 100px; background-color: maroon; color: white;">Actions</th>
         </tr>
         {% for stock in stocks %}
@@ -83,6 +84,7 @@
             <td>{{ stock.name }}</td>
             <td>{{ stock.tickersymbol }}</td>
             <td>{{ stock.exchange }}</td>
+            <td>{{ stock.sector }}</td>
             <td style="width: 100px;">
                 <a href="{{ url_for('edit_stock', id=stock.id) }}" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none; margin-right: 5px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -110,9 +112,13 @@
                     <label for="tickersymbol" style="margin-right: 10px; min-width: 120px;">Ticker Symbol:</label>
                     <input type="text" id="tickersymbol" name="tickersymbol" required style="width: 150px;">
                 </div>
-                <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
                     <label for="exchange" style="margin-right: 10px; min-width: 120px;">Exchange:</label>
                     <input type="text" id="exchange" name="exchange" placeholder="NYSE" style="width: 150px;">
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                    <label for="sector" style="margin-right: 10px; min-width: 120px;">Sector:</label>
+                    <input type="text" id="sector" name="sector" style="width: 150px;">
                 </div>
                 <input type="submit" value="Submit" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 0 auto; display: block;">
             </form>

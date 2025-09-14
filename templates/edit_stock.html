@@ -12,7 +12,9 @@
         <label for="tickersymbol">Ticker Symbol:</label><br>
         <input type="text" id="tickersymbol" name="tickersymbol" value="{{ stock.tickersymbol }}" required><br>
         <label for="exchange">Exchange:</label><br>
-        <input type="text" id="exchange" name="exchange" value="{{ stock.exchange }}"><br><br>
+        <input type="text" id="exchange" name="exchange" value="{{ stock.exchange }}"><br>
+        <label for="sector">Sector:</label><br>
+        <input type="text" id="sector" name="sector" value="{{ stock.sector }}"><br><br>
         <input type="submit" value="Update Stock">
     </form>
     <a href="{{ url_for('index') }}">Back to Portfolio</a> | <a href="{{ url_for('index') }}">Home</a>
