@@ -1,8 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
+from functools import wraps
 from models import db, Stock, Transaction, Portfolio, Price, User
 from werkzeug.security import generate_password_hash, check_password_hash
-from functools import wraps
-from models import db, Stock, Transaction, Portfolio, Price
 from dotenv import load_dotenv
 import os
 import random
@@ -76,9 +75,10 @@ WALLET_PASSWORD = os.getenv('WALLET_PASSWORD')
 WALLET_LOCATION = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wallet')
 
 # Use this for SQLite
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stocks.db'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stocks.db'
 
 # Use this for Oracle Autonomous Database
+
 app.config['SQLALCHEMY_DATABASE_URI'] = f'oracle+oracledb://{DB_USER}:{DB_PASSWORD}@{DB_DSN}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -88,60 +88,14 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'wallet_password': WALLET_PASSWORD
     }
 }
+
 # Autonomous DB Config Ends
 db.init_app(app)
-
-# Sample list of high-volume tickers (for demonstration)
-# In a real application, this would be fetched dynamically from a reliable source.
-SAMPLE_HIGH_VOLUME_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "JPM", "V",
-    "JNJ", "WMT", "PG", "XOM", "HD", "UNH", "MA", "VZ", "DIS", "ADBE",
-    "NFLX", "PYPL", "INTC", "CMCSA", "PEP", "KO", "PFE", "MRK", "ABT", "NKE",
-    "BAC", "C", "WFC", "GS", "MS", "AMGN", "GILD", "BMY", "CVS", "MDLZ",
-    "SBUX", "GM", "F", "GE", "BA", "CAT", "MMM", "HON", "RTX", "LMT",
-    "GD", "NOC", "SPG", "PLD", "EQIX", "AMT", "CCI", "DUK", "D", "SO",
-    "NEE", "XEL", "PCG", "AEP", "EXC", "PEG", "SRE", "WEC", "ED", "EIX",
-    "DTE", "CMS", "ETR", "FE", "CNP", "AES", "NI", "PNW", "PPL", "ATO",
-    "LNT", "MGEE", "OGE", "POR", "SJI", "SR", "WTRG", "XELB", "YORW", "ZBRA",
-    "CRM", "AMD", "QCOM", "TXN", "AVGO", "CSCO", "ACN", "ORCL", "SAP", "IBM",
-    "ADSK", "SNPS", "CDNS", "ANSS", "FTNT", "PANW", "NOW", "WDAY", "SPLK", "OKTA"
-]
-
-def populate_initial_stocks():
-    print("Populating initial stocks...")
-    for ticker_symbol in SAMPLE_HIGH_VOLUME_TICKERS:
-        existing_stock = Stock.query.filter_by(tickersymbol=ticker_symbol).first()
-        if not existing_stock:
-            try:
-                # Fetch stock info to get a name, if possible
-                ticker_info = yf.Ticker(ticker_symbol).info
-                stock_name = ticker_info.get('longName', ticker_symbol)
-                exchange = ticker_info.get('exchange', 'N/A')
-                sector = ticker_info.get('sector', 'N/A') # Get sector info
-
-                new_stock = Stock(name=stock_name, tickersymbol=ticker_symbol, exchange=exchange, sector=sector)
-                db.session.add(new_stock)
-                db.session.commit() # Commit inside loop to make each stock visible immediately
-                print(f"Added new stock: {ticker_symbol} - {stock_name}")
-            except Exception as e:
-                print(f"Could not add stock {ticker_symbol}: {e}")
-    # db.session.commit() # Removed as commit is now inside the loop
-    print("Initial stock population complete.")
 
 @app.template_filter('format_currency')
 def format_currency(value):
     """Format a value as currency with comma separators."""
     return "{:,.2f}".format(value)
-
-def create_admin_user():
-    with app.app_context():
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            hashed_password = generate_password_hash('passwd', method='pbkdf2:sha256')
-            new_admin = User(username='admin', password_hash=hashed_password, is_admin=True)
-            db.session.add(new_admin)
-            db.session.commit()
-            print("Admin user 'admin' created.")
 
 def login_required(f):
     @wraps(f)

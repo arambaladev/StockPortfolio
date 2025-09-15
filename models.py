@@ -4,6 +4,7 @@ from sqlalchemy import Sequence
 db = SQLAlchemy()
 
 class User(db.Model):
+    __tablename__ = 'users'
     id = db.Column(db.Integer, Sequence('user_id_seq'), primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
@@ -25,7 +26,7 @@ class Stock(db.Model):
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, Sequence('transaction_id_seq'), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     tickersymbol = db.Column(db.String(20), db.ForeignKey('stock.tickersymbol'), nullable=False)
     operation = db.Column(db.String(4), nullable=False, default='Buy')
     quantity = db.Column(db.Integer, nullable=False)
@@ -37,7 +38,7 @@ class Transaction(db.Model):
         return f'<Transaction {self.id}>'
 
 class Portfolio(db.Model):
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     tickersymbol = db.Column(db.String(20), db.ForeignKey('stock.tickersymbol'), primary_key=True)
     quantity = db.Column(db.Integer, nullable=False, default=0)
     value = db.Column(db.Float, nullable=False, default=0.0)

@@ -30,7 +30,7 @@ def clean_all_tables():
     # --- Table Cleaning Logic ---
     # The order is important to respect foreign key constraints
     # Delete from child tables before parent tables.
-    tables_to_clean = ['price', 'portfolio', 'transaction', 'stock', 'user']
+    tables_to_clean = ['price', 'portfolio', 'transaction', 'stock', 'users']
 
     with engine.connect() as connection:
         print("Connecting to the database to clean tables...")
