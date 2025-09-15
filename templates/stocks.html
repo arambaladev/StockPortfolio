@@ -17,6 +17,31 @@
         .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
         .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
     </style>
+    <style>
+        /* Pagination styles from transactions.html for consistency */
+        .pagination {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .pagination a, .pagination span {
+            color: #007bff;
+            padding: 8px 16px;
+            text-decoration: none;
+            transition: background-color .3s;
+            border: 1px solid #ddd;
+            margin: 0 4px;
+        }
+        .pagination span.current {
+            background-color: #007bff;
+            color: white;
+            border: 1px solid #007bff;
+        }
+        .pagination a:hover:not(.active) {
+            background-color: #ddd;
+        }
+    </style>
 </head>
 <body>
     <h1>Stocks List</h1>
@@ -26,8 +51,28 @@
                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-home"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
              </button>
          </a>
-        <button onclick="openAddStockModal()" class="action-button" style="font-size: 16px;">+ Add Stock</button>
+        <div>
+            <a href="{{ url_for('export_stocks') }}" class="action-button" style="background-color: #28a745; margin-right: 10px;">Export to CSV</a>
+            <button onclick="openImportModal()" class="action-button" style="background-color: #17a2b8; margin-right: 10px;">Import from CSV</button>
+            <button onclick="openAddStockModal()" class="action-button" style="font-size: 16px;">+ Add Stock</button>
+        </div>
     </div>
+
+    <!-- Search Bar -->
+    <form method="get" action="{{ url_for('stocks_list') }}" style="margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <input type="text" name="search" placeholder="Search by Ticker or Name" value="{{ search_query or '' }}" style="padding: 8px; width: 300px;">
+            <label for="per_page">Items per page:</label>
+            <select name="per_page" id="per_page" onchange="this.form.submit()">
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+            <input type="submit" value="Search" class="action-button">
+            <a href="{{ url_for('stocks_list') }}" class="action-button" style="background-color: #6c757d;">Clear</a>
+        </div>
+    </form>
 
     <table>
         <tr>
@@ -59,6 +104,29 @@
         {% endfor %}
     </table>
 
+    <!-- Pagination Controls -->
+    <div class="pagination">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('stocks_list', page=pagination.prev_num, search=search_query, per_page=per_page) }}">&laquo; Previous</a>
+        {% endif %}
+
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+            {% if page_num %}
+                {% if pagination.page == page_num %}
+                    <span class="current">{{ page_num }}</span>
+                {% else %}
+                    <a href="{{ url_for('stocks_list', page=page_num, search=search_query, per_page=per_page) }}">{{ page_num }}</a>
+                {% endif %}
+            {% else %}
+                <span>...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <a href="{{ url_for('stocks_list', page=pagination.next_num, search=search_query, per_page=per_page) }}">Next &raquo;</a>
+        {% endif %}
+    </div>
+
     <!-- Add Stock Modal -->
     <div id="addStockModal" class="modal">
         <div class="modal-content">
@@ -67,8 +135,28 @@
             <form method="post" action="{{ url_for('add_stock') }}">
                 <p><label>Name: <input type="text" name="name" required></label></p>
                 <p><label>Ticker Symbol: <input type="text" name="tickersymbol" required></label></p>
-                <p><label>Exchange: <input type="text" name="exchange" value="NYSE"></label></p>
+                <p><label>Exchange: <input type="text" name="exchange"></label></p>
+                <p><label>Sector: <input type="text" name="sector"></label></p>
+                <p><label>Market: <input type="text" name="market"></label></p>
+                <p><label>Currency: <input type="text" name="currency"></label></p>
                 <input type="submit" value="Submit" class="action-button">
+            </form>
+        </div>
+    </div>
+
+    <!-- Import from CSV Modal -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeImportModal()">&times;</span>
+            <h2>Import Stocks from CSV</h2>
+            <form method="post" action="{{ url_for('import_stocks') }}" enctype="multipart/form-data" style="margin-top: 20px;">
+                <p>Please ensure your CSV has the following columns in this order:</p>
+                <p><strong>Ticker, Name, Exchange, Sector, Market, Currency</strong></p>
+                <p>Note: This will only add new stocks; it will not update existing ones.</p>
+                <p>
+                    <input type="file" name="file" accept=".csv" required>
+                </p>
+                <input type="submit" value="Upload and Import" class="action-button" style="margin-top: 10px;">
             </form>
         </div>
     </div>
@@ -96,6 +184,11 @@
         function openAddStockModal() { addModal.style.display = "block"; }
         function closeAddStockModal() { addModal.style.display = "none"; }
 
+        // Import Modal functions
+        const importModal = document.getElementById("importModal");
+        function openImportModal() { importModal.style.display = "block"; }
+        function closeImportModal() { importModal.style.display = "none"; }
+
         // Edit Stock Modal
         const editModal = document.getElementById("editStockModal");
         function openEditStockModal(id, name, tickersymbol, exchange, sector, market, currency) {
@@ -117,6 +210,9 @@
             }
             if (event.target == editModal) {
                 closeEditStockModal();
+            }
+            if (event.target == importModal) {
+                closeImportModal();
             }
         }
     </script>

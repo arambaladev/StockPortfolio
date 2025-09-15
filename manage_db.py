@@ -1,31 +1,66 @@
 import sys
 import yfinance as yf
+import io
+import pandas as pd
 from app import app, db
 from models import Stock, User
 from werkzeug.security import generate_password_hash
+from urllib.request import Request, urlopen
 
-SAMPLE_HIGH_VOLUME_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "BRK-B", "JPM", "V",
-    "ORCL","INFY.NS"
-]
+def get_sp500_tickers():
+    """Fetches S&P 500 tickers from Wikipedia."""
+    print("Fetching S&P 500 tickers...")
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    # Add a User-Agent header to mimic a browser request
+    req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    webpage = urlopen(req).read()
+    tables = pd.read_html(webpage)
+    sp500_table = tables[0]
+    # The ticker symbol is in the 'Symbol' column
+    return sp500_table['Symbol'].tolist()
+
+def get_nifty500_tickers():
+    """Fetches NIFTY 500 tickers from Wikipedia."""
+    print("Fetching NIFTY 500 tickers...")
+    # This URL points to the CSV for all equity stocks on NSE.
+    url = 'https://archives.nseindia.com/content/equities/EQUITY_L.csv'
+    # Add a User-Agent header to mimic a browser request
+    try:
+        req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        webpage = urlopen(req).read()
+        # Use pandas to read the CSV data directly from the downloaded content
+        all_stocks_df = pd.read_csv(io.StringIO(webpage.decode('utf-8')))
+        # Filter for stocks in the 'EQ' series, which represents regular equity.
+        # The ticker symbol is in the 'Symbol' column
+        # We need to append '.NS' for yfinance to recognize them as NSE stocks
+        return [f"{ticker}.NS" for ticker in all_stocks_df['SYMBOL'].tolist()]
+    except Exception as e:
+        print(f"Could not fetch NIFTY 500 page: {e}")
+        return []
 
 def populate_initial_stocks():
     print("Populating initial stocks...")
-    for ticker_symbol in SAMPLE_HIGH_VOLUME_TICKERS:
+    
+    # Combine tickers from both indices
+    all_tickers = get_sp500_tickers() + get_nifty500_tickers()
+    
+    for ticker_symbol in all_tickers:
         existing_stock = Stock.query.filter_by(tickersymbol=ticker_symbol).first()
         if not existing_stock:
             try:
                 # Fetch stock info to get a name, if possible
                 ticker_info = yf.Ticker(ticker_symbol).info
                 stock_name = ticker_info.get('longName', ticker_symbol)
-                exchange = ticker_info.get('exchange', 'N/A')
                 sector = ticker_info.get('sector', 'N/A') # Get sector info
                 market = ticker_info.get('market', 'N/A')
                 currency = ticker_info.get('currency', 'N/A')
-
+                # Exchange can be derived from market or currency, or fetched directly
+                exchange = ticker_info.get('exchange', 'NSE' if '.NS' in ticker_symbol else 'NMS')
+                
                 new_stock = Stock(name=stock_name, tickersymbol=ticker_symbol, exchange=exchange, sector=sector, market=market, currency=currency)
                 db.session.add(new_stock)
                 db.session.commit() # Commit inside loop to make each stock visible immediately
+                print(f"Added new stock: {ticker_symbol} - {stock_name}")
             except Exception as e:
                 print(f"Could not add stock {ticker_symbol}: {e}")
     print("Initial stock population complete.")
@@ -71,27 +106,39 @@ def reset_database():
     initialize_database()
 
 if __name__ == "__main__":
-    command = None
-    if len(sys.argv) > 1:
-        command = sys.argv[1]
+    print("\n--- Database Management Menu ---")
+    print("1. Initialize Database (Create tables and populate initial data)")
+    print("2. Reset Database (Drop all tables and re-initialize)")
+    print("3. Clean Database (Drop all tables)")
+    print("4. Exit")
+    
+    choice = input("Please select an option (1-4): ")
 
-    if command == 'reset':
-        confirmation = input("Are you sure you want to RESET the database? This will drop all tables and recreate them. (Y/N): ")
-        if confirmation.strip().upper() == 'Y':
-            reset_database()
-        else:
-            print("Database reset cancelled.")
-    elif command == 'clean':
-        confirmation = input("Are you sure you want to CLEAN (DROP) all database tables? This is irreversible. (Y/N): ")
-        if confirmation.strip().upper() == 'Y':
-            clean_all_tables()
-        else:
-            print("Database clean cancelled.")
-    elif command == 'init':
-        confirmation = input("Are you sure you want to initialize the database and create tables? (Y/N): ")
+    if choice == '1':
+        print("\nOperation: Initialize Database.")
+        print("This will create all tables and populate them with initial stocks and the admin user.")
+        confirmation = input("Are you sure you want to proceed? (Y/N): ")
         if confirmation.strip().upper() == 'Y':
             initialize_database()
         else:
-            print("Database initialization cancelled.")
+            print("Operation cancelled.")
+    elif choice == '2':
+        print("\nOperation: Reset Database.")
+        print("This will permanently DROP all tables and then recreate them with initial data.")
+        confirmation = input("Are you sure you want to proceed? This is irreversible. (Y/N): ")
+        if confirmation.strip().upper() == 'Y':
+            reset_database()
+        else:
+            print("Operation cancelled.")
+    elif choice == '3':
+        print("\nOperation: Clean Database.")
+        print("This will permanently DROP all tables and delete all data.")
+        confirmation = input("Are you sure you want to proceed? This is irreversible. (Y/N): ")
+        if confirmation.strip().upper() == 'Y':
+            clean_all_tables()
+        else:
+            print("Operation cancelled.")
+    elif choice == '4':
+        print("Exiting.")
     else:
-        print("Usage: python manage_db.py [init|reset|clean]")
+        print("Invalid option. Please choose a number between 1 and 4.")

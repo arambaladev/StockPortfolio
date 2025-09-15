@@ -304,7 +304,10 @@ def add_stock():
     if request.method == 'POST':
         name = request.form['name']
         tickersymbol = request.form['tickersymbol'].upper() # Convert to uppercase
-        exchange = request.form['exchange']
+        exchange = request.form.get('exchange')
+        sector = request.form.get('sector')
+        market = request.form.get('market')
+        currency = request.form.get('currency')
 
         # Validate ticker symbol using yfinance
         try:
@@ -313,15 +316,13 @@ def add_stock():
             if not info or 'regularMarketPrice' not in info: # A common key that indicates valid stock data
                 return f"Ticker symbol '{tickersymbol}' not found or no market data available.", 400
             
-            # Fetch additional details
-            sector = info.get('sector', 'N/A')
-            market = info.get('market', 'N/A')
-            currency = info.get('currency', 'N/A')
+            # Fill in any blank fields with data from yfinance
+            exchange = exchange or info.get('exchange', 'N/A')
+            sector = sector or info.get('sector', 'N/A')
+            market = market or info.get('market', 'N/A')
+            currency = currency or info.get('currency', 'N/A')
         except Exception as e:
             return f"Error validating ticker symbol '{tickersymbol}': {e}", 400
-
-        if not exchange:
-            exchange = 'NYSE'
 
         new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange, sector=sector, market=market, currency=currency)
         db.session.add(new_stock)
@@ -379,8 +380,76 @@ def delete_stock(id):
 @app.route('/stocks')
 @admin_required
 def stocks_list():
-    stocks = Stock.query.all()
-    return render_template('stocks.html', stocks=stocks)
+    search_query = request.args.get('search', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    query = Stock.query.order_by(Stock.tickersymbol)
+    if search_query:
+        query = query.filter(or_(
+            Stock.tickersymbol.ilike(f'%{search_query}%'),
+            Stock.name.ilike(f'%{search_query}%')
+        ))
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    stocks = pagination.items
+    return render_template('stocks.html', stocks=stocks, pagination=pagination, search_query=search_query, per_page=per_page)
+
+@app.route('/export_stocks')
+@admin_required
+def export_stocks():
+    """Exports all stocks to a CSV file."""
+    stocks = Stock.query.order_by(Stock.tickersymbol).all()
+
+    si = io.StringIO()
+    cw = csv.writer(si)
+
+    # Write header row
+    cw.writerow(['Ticker', 'Name', 'Exchange', 'Sector', 'Market', 'Currency'])
+
+    # Write data rows
+    for s in stocks:
+        cw.writerow([s.tickersymbol, s.name, s.exchange, s.sector, s.market, s.currency])
+
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=stocks.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@app.route('/import_stocks', methods=['POST'])
+@admin_required
+def import_stocks():
+    if 'file' not in request.files:
+        flash('No file part', 'danger')
+        return redirect(url_for('stocks_list'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No selected file', 'danger')
+        return redirect(url_for('stocks_list'))
+
+    if file and file.filename.endswith('.csv'):
+        try:
+            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            csv_reader = csv.reader(stream)
+            next(csv_reader)  # Skip header row
+
+            for row in csv_reader:
+                tickersymbol, name, exchange, sector, market, currency = row
+                # Create new stock if it doesn't exist
+                existing_stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
+                if not existing_stock:
+                    new_stock = Stock(tickersymbol=tickersymbol, name=name, exchange=exchange, sector=sector, market=market, currency=currency)
+                    db.session.add(new_stock)
+            
+            db.session.commit()
+            flash(f'Successfully imported stocks from {file.filename}. New stocks were added.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred during import: {e}', 'danger')
+        return redirect(url_for('stocks_list'))
+
+    flash('Invalid file type. Please upload a CSV file.', 'warning')
+    return redirect(url_for('stocks_list'))
 
 def get_current_stock_quantity(tickersymbol, transaction_date, user_id, exclude_transaction_id=None):
     buy_query = db.session.query(db.func.sum(Transaction.quantity)).filter(
