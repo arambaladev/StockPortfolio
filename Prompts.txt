@@ -156,4 +156,6 @@ Good - nother req: In the lot details pop-up, Can U sort the rows by descending 
 In the Portfolio table at the  first column - ticker symbol - we have triple dot icon which lists "Transaction History", Add New Transacction and Lot Details in that order. I want to change that order. Can U change it to "Lot Details" at the top, Next is Transaction History and Add New Transaction be at the last
 
 
+Now, Let us implement Reporting currency. Assume, user selects USD, then Indian Portfolio's Current Value in INR should be displayed as it is but, at the right side within brackets, it should convert the INR value to USD value by talking to yfinance with today's date and show with USD currency sign. IF the uer selects INR, US Portfolio 's current value should eb converted to INR and show within brackets
+
 

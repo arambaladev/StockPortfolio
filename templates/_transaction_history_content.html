@@ -14,8 +14,12 @@
             <td>{{ transaction.operation }}</td>
             <td>{{ transaction.quantity }}</td>
             <td>{{ transaction.date }}</td>
-            <td>${{ transaction.price|format_currency }}</td>
-            <td>${{ (transaction.quantity * transaction.price)|format_currency }}</td>
+            <td>
+                {% if transaction.currency == 'INR' %}₹{% else %}${% endif %}{{ transaction.price|format_inr_currency if transaction.currency == 'INR' else transaction.price|format_currency }}
+            </td>
+            <td>
+                {% if transaction.currency == 'INR' %}₹{% else %}${% endif %}{{ (transaction.quantity * transaction.price)|format_inr_currency if transaction.currency == 'INR' else (transaction.quantity * transaction.price)|format_currency }}
+            </td>
         </tr>
         {% endfor %}
     </tbody>

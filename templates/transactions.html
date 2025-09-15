@@ -107,7 +107,11 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-home"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             </button>
         </a>
-        <button onclick="openAddTransactionModal()" style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Transaction</button>
+        <div>
+            <a href="{{ url_for('export_transactions') }}" style="background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px; text-decoration: none; margin-right: 10px;">Export to CSV</a>
+            <button onclick="openImportModal()" style="background-color: #17a2b8; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-right: 10px;">Import from CSV</button>
+            <button onclick="openAddTransactionModal()" style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Transaction</button>
+        </div>
     </div>
     <table>
         <tr>
@@ -127,11 +131,11 @@
             <td>{{ transaction.date }}</td>
             <td>
                 {% if transaction.currency == 'INR' %}₹{% else %}${% endif %}
-                {{ transaction.price|format_currency }}
+                {{ transaction.price|format_inr_currency if transaction.currency == 'INR' else transaction.price|format_currency }}
             </td>
             <td>
                 {% if transaction.currency == 'INR' %}
-                    ₹{{ (transaction.quantity * transaction.price)|format_currency }}
+                    ₹{{ (transaction.quantity * transaction.price)|format_inr_currency }}
                 {% else %}
                     ${{ (transaction.quantity * transaction.price)|format_currency }}
                 {% endif %}
@@ -168,6 +172,24 @@
         {% if pagination.has_next %}
             <a href="{{ url_for('transactions', page=pagination.next_num) }}">Next &raquo;</a>
         {% endif %}
+    </div>
+
+    <!-- Import from CSV Modal -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; background-color: maroon; padding: 10px; width: 100%;">
+                <h2 style="color: white; text-align: center; margin: 0; flex-grow: 1;">Import Transactions from CSV</h2>
+                <span class="close-button" onclick="closeImportModal()" style="position: static; color: white; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            </div>
+            <form method="post" action="{{ url_for('import_transactions') }}" enctype="multipart/form-data" style="margin-top: 20px;">
+                <p>Please ensure your CSV has the following columns in this order:</p>
+                <p><strong>Date, Ticker, Operation, Quantity, Price, Currency, Market</strong></p>
+                <p>
+                    <input type="file" name="file" accept=".csv" required>
+                </p>
+                <input type="submit" value="Upload and Import" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px;">
+            </form>
+        </div>
     </div>
 
     <div id="addTransactionModal" class="modal">
@@ -321,11 +343,19 @@
             modal.style.display = "none";
         }
 
+        // Import Modal functions
+        const importModal = document.getElementById("importModal");
+        function openImportModal() { importModal.style.display = "block"; }
+        function closeImportModal() { importModal.style.display = "none"; }
+
         // Close the modal if the user clicks outside of it
         window.onclick = function(event) {
             var modal = document.getElementById("addTransactionModal");
             if (event.target == modal) {
                 modal.style.display = "none";
+            }
+            if (event.target == importModal) {
+                closeImportModal();
             }
         }
 
@@ -412,6 +442,10 @@
                 const ticker = urlParams.get('ticker');
                 if (ticker) {
                     document.getElementById('tickersymbol').value = ticker;
+                }
+                const market = urlParams.get('market');
+                if (market) {
+                    document.getElementById('market').value = market;
                 }
                 openAddTransactionModal();
                 fetchHistoricalPrices(); // Fetch prices for the pre-filled ticker

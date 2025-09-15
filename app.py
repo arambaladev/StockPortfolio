@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash, make_response
 from functools import wraps
 from models import db, Stock, Transaction, Portfolio, Price, User
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -8,6 +8,8 @@ import random
 import datetime
 import yfinance as yf
 from sqlalchemy import or_
+import io
+import csv
 
 def _xnpv(rate, cash_flows, dates):
     """
@@ -96,6 +98,25 @@ db.init_app(app)
 def format_currency(value):
     """Format a value as currency with comma separators."""
     return "{:,.2f}".format(value)
+
+@app.template_filter('format_inr_currency')
+def format_inr_currency(value):
+    """Format a value as currency using the Indian numbering system (lakhs, crores)."""
+    try:
+        val_str = f"{value:,.2f}"
+        if '.' in val_str:
+            integer_part, decimal_part = val_str.split('.')
+            integer_part = integer_part.replace(',', '')
+            if len(integer_part) > 3:
+                last_three = integer_part[-3:]
+                other_digits = integer_part[:-3]
+                other_digits = ','.join(other_digits[max(0, i-2):i] for i in range(len(other_digits), 0, -2))[::-1]
+                return f"{other_digits},{last_three}.{decimal_part}"
+            else:
+                return f"{integer_part}.{decimal_part}"
+    except (ValueError, TypeError):
+        return value
+    return val_str
 
 def login_required(f):
     @wraps(f)
@@ -230,7 +251,8 @@ def index():
             'percentage': 0.0, # Placeholder, will be calculated later
             'xirr': xirr_value,
             'cost_basis': cost_basis,
-            'currency': stock_info.currency if stock_info else 'USD'
+            'currency': stock_info.currency if stock_info else 'USD',
+            'market': stock_info.market if stock_info else 'us_market'
         }
 
         # Segregate data based on currency
@@ -861,6 +883,77 @@ def lot_details(tickersymbol):
     # Render a partial template to get the HTML for the lot details
     lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price, currency=currency)
     return jsonify({'html': lots_html})
+
+@app.route('/export_transactions')
+@login_required
+def export_transactions():
+    """Exports all transactions for the logged-in user to a CSV file."""
+    transactions = Transaction.query.filter_by(user_id=session['user_id']).order_by(Transaction.date.desc()).all()
+
+    # Use io.StringIO to create an in-memory text file
+    si = io.StringIO()
+    cw = csv.writer(si)
+
+    # Write header row
+    cw.writerow(['Date', 'Ticker', 'Operation', 'Quantity', 'Price', 'Currency', 'Market'])
+
+    # Write data rows
+    for t in transactions:
+        cw.writerow([t.date, t.tickersymbol, t.operation, t.quantity, t.price, t.currency, t.market])
+
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=transactions.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@app.route('/import_transactions', methods=['POST'])
+@login_required
+def import_transactions():
+    if 'file' not in request.files:
+        flash('No file part', 'danger')
+        return redirect(url_for('transactions'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No selected file', 'danger')
+        return redirect(url_for('transactions'))
+
+    if file and file.filename.endswith('.csv'):
+        try:
+            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            csv_reader = csv.reader(stream)
+            next(csv_reader)  # Skip header row
+
+            tickers_to_update = set()
+
+            for row in csv_reader:
+                date, ticker, operation, quantity, price, currency, market = row
+                
+                # Basic validation
+                stock = Stock.query.filter_by(tickersymbol=ticker).first()
+                if not stock:
+                    print(f"Skipping row: Stock with ticker {ticker} not found.")
+                    continue
+
+                new_transaction = Transaction(
+                    date=date, tickersymbol=ticker, operation=operation,
+                    quantity=int(quantity), price=float(price), currency=currency,
+                    market=market, user_id=session['user_id']
+                )
+                db.session.add(new_transaction)
+                tickers_to_update.add(ticker)
+
+            db.session.commit()
+            for ticker in tickers_to_update:
+                update_portfolio(ticker, session['user_id'])
+            flash(f'Successfully imported transactions from {file.filename}', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'An error occurred during import: {e}', 'danger')
+        return redirect(url_for('transactions'))
+
+    flash('Invalid file type. Please upload a CSV file.', 'warning')
+    return redirect(url_for('transactions'))
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
