@@ -164,24 +164,33 @@ def index():
     order = request.args.get('order', 'desc') # Default order descending
     reverse = (order == 'desc')
 
+    # Fetch the current USD to INR exchange rate
+    usdinr_rate = 83.0 # Default fallback rate
+    try:
+        ticker = yf.Ticker("USDINR=X")
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            usdinr_rate = hist['Close'].iloc[-1]
+    except Exception as e:
+        print(f"Could not fetch USDINR exchange rate, using default. Error: {e}")
+
     portfolio_items = Portfolio.query.filter_by(user_id=session['user_id']).all()
-    portfolio_data = []
-    total_portfolio_value = 0.0
-    total_invested_amount = 0.0 # Initialize total invested amount
-    sector_data = {} # To hold value per sector
+    
+    # Data structures for multi-currency portfolios
+    usd_portfolio_data = []
+    inr_portfolio_data = []
+    usd_total_value = 0.0
+    usd_invested_amount = 0.0
+    inr_total_value = 0.0
+    inr_invested_amount = 0.0
+    usd_sector_data = {} # For USD portfolio
+    inr_sector_data = {} # For INR portfolio
 
     for item in portfolio_items:
         # Get latest price from Price table for display in portfolio
         price_entry = Price.query.filter_by(tickersymbol=item.tickersymbol).order_by(Price.date.desc()).first()
         latest_price = price_entry.price if price_entry else 0.0
         item_value = item.quantity * latest_price
-        total_portfolio_value += item_value
-
-        # Aggregate data for sector chart
-        stock_info = Stock.query.filter_by(tickersymbol=item.tickersymbol).first()
-        sector = stock_info.sector if stock_info and stock_info.sector else 'Uncategorized'
-        sector_data[sector] = sector_data.get(sector, 0) + item_value
-
 
         # Prepare data for XIRR calculation
         cash_flows = []
@@ -204,44 +213,68 @@ def index():
 
         # Calculate FIFO Cost Basis
         cost_basis = calculate_fifo_cost_basis(item.tickersymbol, session['user_id'], item.quantity)
-        total_invested_amount += cost_basis # Add to total invested amount
+        stock_info = Stock.query.filter_by(tickersymbol=item.tickersymbol).first()
 
         xirr_value = None
         if len(cash_flows) > 1: # XIRR requires at least two cash flows
-            print(f"DEBUG: Cash flows for {item.tickersymbol}: {cash_flows}")
-            print(f"DEBUG: Dates for {item.tickersymbol}: {dates}")
             try:
                 xirr_value = calculate_xirr(cash_flows, dates)
             except Exception as e:
                 print(f"Error calculating XIRR for {item.tickersymbol}: {e}")
 
-        portfolio_data.append({
+        item_data = {
             'tickersymbol': item.tickersymbol,
             'quantity': item.quantity,
             'latest_price': latest_price,
             'value': item_value,
             'percentage': 0.0, # Placeholder, will be calculated later
             'xirr': xirr_value,
-            'cost_basis': cost_basis
-        })
-    
-    # Calculate percentage of portfolio for each item
-    if total_portfolio_value > 0:
-        for item in portfolio_data:
-            item['percentage'] = (item['value'] / total_portfolio_value) * 100
+            'cost_basis': cost_basis,
+            'currency': stock_info.currency if stock_info else 'USD'
+        }
+
+        # Segregate data based on currency
+        if item_data['currency'] == 'INR':
+            inr_portfolio_data.append(item_data)
+            inr_total_value += item_value
+            inr_invested_amount += cost_basis
+            # Aggregate INR sector data
+            sector = stock_info.sector if stock_info and stock_info.sector else 'Uncategorized'
+            inr_sector_data[sector] = inr_sector_data.get(sector, 0) + item_value
+        else: # Default to USD
+            usd_portfolio_data.append(item_data)
+            usd_total_value += item_value
+            usd_invested_amount += cost_basis
+            # Aggregate USD sector data
+            sector = stock_info.sector if stock_info and stock_info.sector else 'Uncategorized'
+            usd_sector_data[sector] = usd_sector_data.get(sector, 0) + item_value
+
+    # Calculate percentage of portfolio for each item within its currency group
+    if usd_total_value > 0:
+        for item in usd_portfolio_data:
+            item['percentage'] = (item['value'] / usd_total_value) * 100
+    if inr_total_value > 0:
+        for item in inr_portfolio_data:
+            item['percentage'] = (item['value'] / inr_total_value) * 100
 
     # Sort the portfolio data based on query parameters
-    if portfolio_data and sort_by in portfolio_data[0]:
-        portfolio_data.sort(key=lambda x: x[sort_by], reverse=reverse)
-    else:
-        # Default sort if key is invalid
-        portfolio_data.sort(key=lambda x: x['value'], reverse=True)
+    if usd_portfolio_data:
+        sort_key = sort_by if sort_by in usd_portfolio_data[0] else 'value'
+        usd_portfolio_data.sort(key=lambda x: x[sort_key], reverse=reverse)
+    if inr_portfolio_data:
+        sort_key = sort_by if sort_by in inr_portfolio_data[0] else 'value'
+        inr_portfolio_data.sort(key=lambda x: x[sort_key], reverse=reverse)
 
-    print(f"DEBUG: total_portfolio_value: {total_portfolio_value}")
-    print(f"DEBUG: portfolio_data: {portfolio_data}")
-    print(f"DEBUG: total_invested_amount: {total_invested_amount}") # Debug print for invested amount
-
-    return render_template('index.html', portfolio_data=portfolio_data, total_portfolio_value=total_portfolio_value, total_invested_amount=total_invested_amount, login_success=login_success, sector_data=sector_data)
+    return render_template('index.html', 
+                           usd_portfolio_data=usd_portfolio_data,
+                           inr_portfolio_data=inr_portfolio_data,
+                           usd_total_value=usd_total_value,
+                           usd_invested_amount=usd_invested_amount,
+                           inr_total_value=inr_total_value,
+                           inr_invested_amount=inr_invested_amount,
+                           login_success=login_success, usd_sector_data=usd_sector_data,
+                           inr_sector_data=inr_sector_data,
+                           usdinr_rate=usdinr_rate)
 
 @app.route('/add', methods=['GET', 'POST'])
 @admin_required
@@ -255,15 +288,20 @@ def add_stock():
         try:
             ticker = yf.Ticker(tickersymbol)
             info = ticker.info # Attempt to get info to validate existence
-            if 'regularMarketPrice' not in info: # A common key that indicates valid stock data
+            if not info or 'regularMarketPrice' not in info: # A common key that indicates valid stock data
                 return f"Ticker symbol '{tickersymbol}' not found or no market data available.", 400
+            
+            # Fetch additional details
+            sector = info.get('sector', 'N/A')
+            market = info.get('market', 'N/A')
+            currency = info.get('currency', 'N/A')
         except Exception as e:
             return f"Error validating ticker symbol '{tickersymbol}': {e}", 400
 
         if not exchange:
             exchange = 'NYSE'
 
-        new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange, sector=sector)
+        new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange, sector=sector, market=market, currency=currency)
         db.session.add(new_stock)
         db.session.commit()
         return redirect(url_for('stocks_list')) # Redirect to stocks_list after adding
@@ -278,13 +316,20 @@ def edit_stock(id):
         stock.tickersymbol = request.form['tickersymbol'].upper() # Convert to uppercase
         stock.exchange = request.form['exchange']
         stock.sector = request.form['sector']
+        stock.market = request.form['market']
+        stock.currency = request.form['currency']
 
         # Validate ticker symbol using yfinance
         try:
             ticker = yf.Ticker(stock.tickersymbol)
             info = ticker.info
-            if 'regularMarketPrice' not in info:
+            if not info or 'regularMarketPrice' not in info:
                 return f"Ticker symbol '{stock.tickersymbol}' not found or no market data available.", 400
+            
+            # Update additional details on edit as well
+            stock.sector = info.get('sector', stock.sector) # Keep old value if new one not found
+            stock.market = info.get('market', 'N/A')
+            stock.currency = info.get('currency', 'N/A')
         except Exception as e:
             return f"Error validating ticker symbol '{stock.tickersymbol}': {e}", 400
 
@@ -538,6 +583,8 @@ def add_transaction():
         quantity = request.form['quantity']
         date = request.form['date']
         price = request.form['price']
+        market = request.form.get('market', 'us_market') # Default to us_market if not provided
+        currency = request.form.get('currency', 'USD') # Default to USD
 
         stock = Stock.query.filter_by(tickersymbol= tickersymbol).first()
         if not stock:
@@ -548,7 +595,7 @@ def add_transaction():
             if int(quantity) > available_quantity:
                 return jsonify({'error': 'Insufficient quantity to sell.'}), 400
 
-        new_transaction = Transaction(tickersymbol= tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), user_id=session['user_id'])
+        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), market=market, currency=currency, user_id=session['user_id'])
         db.session.add(new_transaction)
         db.session.commit()
 
@@ -597,6 +644,8 @@ def edit_transaction(id):
         transaction.quantity = int(request.form['quantity'])
         transaction.date = request.form['date']
         transaction.price = float(request.form['price'])
+        transaction.market = request.form.get('market', transaction.market)
+        transaction.currency = request.form.get('currency', transaction.currency)
 
         stock = Stock.query.filter_by(tickersymbol=transaction.tickersymbol).first()
         if not stock:
@@ -656,12 +705,16 @@ def delete_transaction(id):
 @login_required
 def search_tickers():
     query = request.args.get('q', '').upper()
+    market = request.args.get('market', None)
+
     if query:
+        stock_query = Stock.query
+        if market:
+            stock_query = stock_query.filter(Stock.market == market)
+
         # Search for ticker symbols or names that start with the query
-        stocks = Stock.query.filter(or_(
-            Stock.tickersymbol.ilike(f'{query}%'),
-            Stock.name.ilike(f'{query}%')
-        )).order_by(Stock.tickersymbol).limit(10).all()
+        stocks = stock_query.filter(or_(Stock.tickersymbol.ilike(f'{query}%'), Stock.name.ilike(f'{query}%'))) \
+                            .order_by(Stock.tickersymbol).limit(10).all()
         results = [{'tickersymbol': stock.tickersymbol, 'name': stock.name} for stock in stocks]
     else:
         results = []
@@ -726,6 +779,8 @@ def lot_details(tickersymbol):
     # Get the latest price for the stock once
     price_entry = Price.query.filter_by(tickersymbol=tickersymbol).order_by(Price.date.desc()).first()
     latest_price = price_entry.price if price_entry else 0.0
+    stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
+    currency = stock.currency if stock else 'USD'
 
     open_lots = [] # A queue to manage lots for selling
 
@@ -804,7 +859,7 @@ def lot_details(tickersymbol):
     lots.sort(key=lambda x: x['date'], reverse=True)
 
     # Render a partial template to get the HTML for the lot details
-    lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price)
+    lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price, currency=currency)
     return jsonify({'html': lots_html})
 
 if __name__ == "__main__":

@@ -42,15 +42,19 @@
                     {% endif %}
                     {{ lot.balance_quantity }}
                 </td>
-                <td>${{ lot.price|format_currency }}</td>
-                <td>${{ lot.cost_basis|format_currency }}</td>
-                <td>${{ lot.current_value|format_currency }}</td>
-                <td>${{ latest_price|format_currency }}</td>
+                <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ lot.price|format_currency }}</td>
+                <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ lot.cost_basis|format_currency }}</td>
+                <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ lot.current_value|format_currency }}</td>
+                <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ latest_price|format_currency }}</td>
                 <td>
                     {% if lot.unrealized_gain >= 0 %}
-                        <span style="color: green;">${{ lot.unrealized_gain|format_currency }}</span>
+                        <span style="color: green;">
+                            {% if currency == 'INR' %}₹{% else %}${% endif %}{{ lot.unrealized_gain|format_currency }}
+                        </span>
                     {% else %}
-                        <span style="color: red;">${{ lot.unrealized_gain|format_currency }}</span>
+                        <span style="color: red;">
+                            {% if currency == 'INR' %}₹{% else %}${% endif %}{{ lot.unrealized_gain|format_currency }}
+                        </span>
                     {% endif %}
                 </td>
                 <td>
@@ -86,15 +90,19 @@
                                 <tr>
                                 <td>{{ sale.sale_date }}</td>
                                     <td>{{ sale.sold_quantity }}</td>
-                                    <td>${{ sale.purchase_price|format_currency }}</td>
-                                    <td>${{ (sale.sold_quantity * sale.purchase_price)|format_currency }}</td>
-                                    <td>${{ sale.sale_price|format_currency }}</td>
-                                    <td>${{ (sale.sold_quantity * sale.sale_price)|format_currency }}</td>
+                                    <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ sale.purchase_price|format_currency }}</td>
+                                    <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ (sale.sold_quantity * sale.purchase_price)|format_currency }}</td>
+                                    <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ sale.sale_price|format_currency }}</td>
+                                    <td>{% if currency == 'INR' %}₹{% else %}${% endif %}{{ (sale.sold_quantity * sale.sale_price)|format_currency }}</td>
                                     <td>
                                         {% if sale.realized_gain >= 0 %}
-                                            <span style="color: green;">${{ sale.realized_gain|format_currency }}</span>
+                                            <span style="color: green;">
+                                                {% if currency == 'INR' %}₹{% else %}${% endif %}{{ sale.realized_gain|format_currency }}
+                                            </span>
                                         {% else %}
-                                            <span style="color: red;">${{ sale.realized_gain|format_currency }}</span>
+                                            <span style="color: red;">
+                                                {% if currency == 'INR' %}₹{% else %}${% endif %}{{ sale.realized_gain|format_currency }}
+                                            </span>
                                         {% endif %}
                                     </td>
                                     <td>
