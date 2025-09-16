@@ -137,6 +137,39 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_historical_exchange_rate(date_str, from_currency, to_currency):
+    """
+    Fetches the historical exchange rate for a given date.
+    """
+    if from_currency == to_currency:
+        return 1.0
+
+    try:
+        ticker_symbol = f"{from_currency}{to_currency}=X"
+        # Try parsing multiple date formats to be more robust
+        selected_date = None
+        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+            try:
+                selected_date = datetime.datetime.strptime(date_str, fmt).date()
+                break # Stop if a format matches
+            except ValueError:
+                continue
+        if not selected_date:
+            raise ValueError(f"Date format for '{date_str}' not recognized.")
+        # Fetch data for the last 7 days to find the most recent rate if the selected date is a non-trading day.
+        start_date = selected_date - datetime.timedelta(days=7)
+        end_date = selected_date + datetime.timedelta(days=1) # Include the selected date
+
+        ticker = yf.Ticker(ticker_symbol)
+        hist = ticker.history(start=start_date, end=end_date)
+        if not hist.empty:
+            # Return the last available closing price in the period
+            return hist['Close'].iloc[-1]
+    except Exception as e:
+        print(f"Could not fetch historical exchange rate for {ticker_symbol} on {date_str}: {e}")
+    
+    return None # Return None if rate can't be fetched
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -235,7 +268,17 @@ def index():
                 cash_flows.append(-transaction.quantity * transaction.price)
             else: # Sell
                 cash_flows.append(transaction.quantity * transaction.price)
-            dates.append(datetime.datetime.strptime(transaction.date, '%Y-%m-%d').date())
+            
+            # Handle multiple date formats
+            transaction_date = None
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+                try:
+                    transaction_date = datetime.datetime.strptime(transaction.date, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            if transaction_date:
+                dates.append(transaction_date)
 
         # Add current value as a final cash flow
         if item.quantity > 0 and latest_price > 0:
@@ -597,7 +640,7 @@ def add_transaction():
         date = request.form['date']
         price = request.form['price']
         market = request.form.get('market', 'us_market') # Default to us_market if not provided
-        currency = request.form.get('currency', 'USD') # Default to USD
+        currency = request.form['currency'] # Use the currency from the form
 
         stock = Stock.query.filter_by(tickersymbol= tickersymbol).first()
         if not stock:
@@ -608,15 +651,23 @@ def add_transaction():
             if int(quantity) > available_quantity:
                 return jsonify({'error': 'Insufficient quantity to sell.'}), 400
 
-        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), market=market, currency=currency, user_id=session['user_id'])
+        # Calculate price in the other currency
+        price_in_other_currency = None
+        if currency == 'USD':
+            rate = get_historical_exchange_rate(date, 'USD', 'INR')
+            if rate:
+                price_in_other_currency = float(price) * rate
+        elif currency == 'INR':
+            rate = get_historical_exchange_rate(date, 'INR', 'USD')
+            if rate:
+                price_in_other_currency = float(price) * rate
+
+        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), price_in_other_currency=price_in_other_currency, market=market, currency=currency, user_id=session['user_id'])
         db.session.add(new_transaction)
         db.session.commit()
         
         update_portfolio(tickersymbol, session['user_id'])
         return jsonify({'success': True, 'redirect_url': url_for('index')})
-    
-    stocks = Stock.query.all()
-    return render_template('add_transaction.html', stocks=stocks)
 
 @app.route('/edit_transaction/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -639,6 +690,18 @@ def edit_transaction(id):
             available_quantity = get_current_stock_quantity(transaction.tickersymbol, transaction.date, session['user_id'], exclude_transaction_id=transaction.id)
             if transaction.quantity > available_quantity:
                 return "Insufficient quantity to sell after considering other transactions.", 400 # Bad Request
+
+        # Re-calculate price in the other currency on edit
+        price_in_other_currency = None
+        if transaction.currency == 'USD':
+            rate = get_historical_exchange_rate(transaction.date, 'USD', 'INR')
+            if rate:
+                price_in_other_currency = transaction.price * rate
+        elif transaction.currency == 'INR':
+            rate = get_historical_exchange_rate(transaction.date, 'INR', 'USD')
+            if rate:
+                price_in_other_currency = transaction.price * rate
+        transaction.price_in_other_currency = price_in_other_currency
 
         db.session.commit()
         
@@ -774,10 +837,18 @@ def lot_details(tickersymbol):
                 sale_xirr = None
                 try:
                     sale_cash_flows = [-(quantity_from_lot * purchase_price), quantity_from_lot * sale_price]
-                    sale_dates = [
-                        datetime.datetime.strptime(oldest_lot['date'], '%Y-%m-%d').date(),
-                        datetime.datetime.strptime(sale_date, '%Y-%m-%d').date()
-                    ]
+                    sale_dates = []
+                    for date_str in [oldest_lot['date'], sale_date]:
+                        parsed_date = None
+                        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+                            try:
+                                parsed_date = datetime.datetime.strptime(date_str, fmt).date()
+                                break
+                            except ValueError:
+                                continue
+                        if parsed_date:
+                            sale_dates.append(parsed_date)
+
                     sale_xirr = calculate_xirr(sale_cash_flows, sale_dates)
                 except Exception as e:
                     print(f"Error calculating XIRR for sale: {e}")
@@ -808,10 +879,18 @@ def lot_details(tickersymbol):
         if lot['balance_quantity'] > 0:
             try:
                 balance_cash_flows = [-(lot['balance_quantity'] * lot['price']), lot['current_value']]
-                balance_dates = [
-                    datetime.datetime.strptime(lot['date'], '%Y-%m-%d').date(),
-                    datetime.date.today()
-                ]
+                balance_dates = []
+                # Parse lot date
+                parsed_lot_date = None
+                for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+                    try:
+                        parsed_lot_date = datetime.datetime.strptime(lot['date'], fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                if parsed_lot_date:
+                    balance_dates.append(parsed_lot_date)
+                balance_dates.append(datetime.date.today())
                 if balance_dates[0] < balance_dates[1]: # XIRR needs at least two different dates
                     lot['balance_xirr'] = calculate_xirr(balance_cash_flows, balance_dates)
             except Exception as e:
@@ -835,7 +914,7 @@ def export_transactions():
     cw = csv.writer(si)
 
     # Write header row
-    cw.writerow(['Date', 'Ticker', 'Operation', 'Quantity', 'Price', 'Currency', 'Market'])
+    cw.writerow(['Date', 'Ticker', 'Operation', 'Quantity', 'Price', 'Currency', 'Market', 'PriceInOtherCurrency'])
 
     # Write data rows
     for t in transactions:
@@ -875,10 +954,22 @@ def import_transactions():
                     print(f"Skipping row: Stock with ticker {ticker} not found.")
                     continue
 
+                # Calculate price in the other currency during import
+                price_in_other_currency = None
+                if currency == 'USD':
+                    rate = get_historical_exchange_rate(date, 'USD', 'INR')
+                    if rate:
+                        price_in_other_currency = float(price) * rate
+                elif currency == 'INR':
+                    rate = get_historical_exchange_rate(date, 'INR', 'USD')
+                    if rate:
+                        price_in_other_currency = float(price) * rate
+
                 new_transaction = Transaction(
                     date=date, tickersymbol=ticker, operation=operation,
                     quantity=int(quantity), price=float(price), currency=currency,
-                    market=market, user_id=session['user_id']
+                    market=market, user_id=session['user_id'],
+                    price_in_other_currency=price_in_other_currency
                 )
                 db.session.add(new_transaction)
                 tickers_to_update.add(ticker)

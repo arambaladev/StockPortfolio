@@ -146,6 +146,7 @@
             {{ sortable_th('quantity', 'Quantity', sort_by, order) }}
             {{ sortable_th('date', 'Date', sort_by, order) }}
             {{ sortable_th('price', 'Price', sort_by, order) }}
+            <th style="background-color: maroon; color: white;">Price (Other Ccy)</th>
             <th style="background-color: maroon; color: white;">Total Value</th> <!-- Not sortable as it's calculated -->
             <th style="width: 100px; background-color: maroon; color: white;">Actions</th> <!-- Not sortable -->
         </tr>
@@ -158,6 +159,12 @@
             <td>
                 {% if transaction.currency == 'INR' %}₹{% else %}${% endif %}
                 {{ transaction.price|format_inr_currency if transaction.currency == 'INR' else transaction.price|format_currency }}
+            </td>
+            <td>
+                {% if transaction.price_in_other_currency is not none %}
+                    {% if transaction.currency == 'USD' %}₹{% else %}${% endif %}
+                    {{ transaction.price_in_other_currency|format_inr_currency if transaction.currency == 'USD' else transaction.price_in_other_currency|format_currency }}
+                {% endif %}
             </td>
             <td>
                 {% if transaction.currency == 'INR' %}
@@ -209,7 +216,7 @@
             </div>
             <form id="importForm" method="post" action="{{ url_for('import_transactions') }}" enctype="multipart/form-data" style="margin-top: 20px;">
                 <p>Please ensure your CSV has the following columns in this order:</p>
-                <p><strong>Date, Ticker, Operation, Quantity, Price, Currency, Market</strong></p>
+                <p><strong>Date, Ticker, Operation, Quantity, Price, Currency, Market</strong> (The 8th column for other currency price will be ignored and calculated automatically).</p>
                 <p>
                     <input type="file" name="file" accept=".csv" required>
                 </p>
