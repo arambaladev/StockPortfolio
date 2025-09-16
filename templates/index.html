@@ -397,21 +397,29 @@
                     const totalInUSD = usdPortfolioValue + (inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0);
                     grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">$${formatCurrency(totalInUSD)}</span>`;
 
-                    // --- Update INR Portfolio with USD conversion ---
+                    // --- Update INR Portfolio with USD conversions ---
                     if (inrCurrentValueHeader && inrPortfolioValue > 0) {
-                        const convertedValue = inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0;
-                        inrCurrentValueHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">($${formatCurrency(convertedValue, false)})</span>`;
-                        // We will add the logic for Invested Amount and Gain/Loss here in the next step.
+                        const convertedCurrentValue = inrPortfolioValue / usdinrRate;
+                        const convertedInvestedAmount = inrInvestedAmount / usdinrRate;
+                        const convertedGainLoss = convertedCurrentValue - convertedInvestedAmount;
+
+                        inrCurrentValueHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">($${formatCurrency(convertedCurrentValue)})</span>`;
+                        inrInvestedAmountHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">($${formatCurrency(convertedInvestedAmount)})</span>`;
+                        inrGainLossHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(<span style="${convertedGainLoss >= 0 ? 'color: green;' : 'color: red;'}">$${formatCurrency(convertedGainLoss)}</span>)</span>`;
                     }
                 } else if (selectedCurrency === 'INR') {
                     const totalInINR = (usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0) + inrPortfolioValue;
                     grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">₹${formatCurrency(totalInINR, true)}</span>`;
 
-                    // --- Update USD Portfolio with INR conversion ---
+                    // --- Update USD Portfolio with INR conversions ---
                     if (usdCurrentValueHeader && usdPortfolioValue > 0) {
-                        const convertedValue = usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0;
-                        usdCurrentValueHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(₹${formatCurrency(convertedValue, true)})</span>`;
-                        // We will add the logic for Invested Amount and Gain/Loss here in the next step.
+                        const convertedCurrentValue = usdPortfolioValue * usdinrRate;
+                        const convertedInvestedAmount = usdInvestedAmount * usdinrRate;
+                        const convertedGainLoss = convertedCurrentValue - convertedInvestedAmount;
+
+                        usdCurrentValueHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(₹${formatCurrency(convertedCurrentValue, true)})</span>`;
+                        usdInvestedAmountHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(₹${formatCurrency(convertedInvestedAmount, true)})</span>`;
+                        usdGainLossHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(<span style="${convertedGainLoss >= 0 ? 'color: green;' : 'color: red;'}">₹${formatCurrency(convertedGainLoss, true)}</span>)</span>`;
                     }
                 }
             }
