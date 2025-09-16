@@ -660,18 +660,20 @@ def add_transaction():
             if int(quantity) > available_quantity:
                 return jsonify({'error': 'Insufficient quantity to sell.'}), 400
 
-        # Calculate price in the other currency
-        price_in_other_currency = None
+        # Calculate and store prices in both INR and USD
+        inr_price, usd_price = None, None
         if currency == 'USD':
-            rate = get_historical_exchange_rate(date, 'USD', 'INR')
-            if rate:
-                price_in_other_currency = float(price) * rate
+            usd_price = float(price)
+            inr_rate = get_historical_exchange_rate(date, 'USD', 'INR')
+            if inr_rate:
+                inr_price = float(price) * inr_rate
         elif currency == 'INR':
-            rate = get_historical_exchange_rate(date, 'INR', 'USD')
-            if rate:
-                price_in_other_currency = float(price) * rate
+            inr_price = float(price)
+            usd_rate = get_historical_exchange_rate(date, 'INR', 'USD')
+            if usd_rate:
+                usd_price = float(price) * usd_rate
 
-        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), price_in_other_currency=price_in_other_currency, market=market, currency=currency, user_id=session['user_id'])
+        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), inrprice=inr_price, usdprice=usd_price, market=market, currency=currency, user_id=session['user_id'])
         db.session.add(new_transaction)
         db.session.commit()
         
@@ -700,17 +702,19 @@ def edit_transaction(id):
             if transaction.quantity > available_quantity:
                 return "Insufficient quantity to sell after considering other transactions.", 400 # Bad Request
 
-        # Re-calculate price in the other currency on edit
-        price_in_other_currency = None
+        # Re-calculate and store prices in both INR and USD on edit
+        inr_price, usd_price = None, None
         if transaction.currency == 'USD':
-            rate = get_historical_exchange_rate(transaction.date, 'USD', 'INR')
-            if rate:
-                price_in_other_currency = transaction.price * rate
+            usd_price = transaction.price
+            inr_rate = get_historical_exchange_rate(transaction.date, 'USD', 'INR')
+            if inr_rate:
+                inr_price = transaction.price * inr_rate
         elif transaction.currency == 'INR':
-            rate = get_historical_exchange_rate(transaction.date, 'INR', 'USD')
-            if rate:
-                price_in_other_currency = transaction.price * rate
-        transaction.price_in_other_currency = price_in_other_currency
+            inr_price = transaction.price
+            usd_rate = get_historical_exchange_rate(transaction.date, 'INR', 'USD')
+            if usd_rate:
+                usd_price = transaction.price * usd_rate
+        transaction.inrprice, transaction.usdprice = inr_price, usd_price
 
         db.session.commit()
         
@@ -923,7 +927,7 @@ def export_transactions():
     cw = csv.writer(si)
 
     # Write header row
-    cw.writerow(['Date', 'Ticker', 'Operation', 'Quantity', 'Price', 'Currency', 'Market', 'PriceInOtherCurrency'])
+    cw.writerow(['Date', 'Ticker', 'Operation', 'Quantity', 'Price', 'Currency', 'Market', 'INRPrice', 'USDPrice'])
 
     # Write data rows
     for t in transactions:
@@ -969,22 +973,24 @@ def import_transactions():
                     print(f"Skipping row for '{ticker}': Currency mismatch. Stock is '{stock.currency}', but CSV has '{currency}'.")
                     continue
 
-                # Calculate price in the other currency during import
-                price_in_other_currency = None
+                # Calculate and store prices in both INR and USD during import
+                inr_price, usd_price = None, None
                 if currency == 'USD':
-                    rate = get_historical_exchange_rate(date, 'USD', 'INR')
-                    if rate:
-                        price_in_other_currency = float(price) * rate
+                    usd_price = float(price)
+                    inr_rate = get_historical_exchange_rate(date, 'USD', 'INR')
+                    if inr_rate:
+                        inr_price = float(price) * inr_rate
                 elif currency == 'INR':
-                    rate = get_historical_exchange_rate(date, 'INR', 'USD')
-                    if rate:
-                        price_in_other_currency = float(price) * rate
+                    inr_price = float(price)
+                    usd_rate = get_historical_exchange_rate(date, 'INR', 'USD')
+                    if usd_rate:
+                        usd_price = float(price) * usd_rate
 
                 new_transaction = Transaction(
                     date=date, tickersymbol=ticker, operation=operation,
                     quantity=int(quantity), price=float(price), currency=currency,
                     market=market, user_id=session['user_id'],
-                    price_in_other_currency=price_in_other_currency
+                    inrprice=inr_price, usdprice=usd_price
                 )
                 db.session.add(new_transaction)
                 tickers_to_update.add(ticker)

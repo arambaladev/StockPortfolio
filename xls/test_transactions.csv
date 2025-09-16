@@ -1,9 +1,9 @@
 Date,Ticker,Operation,Quantity,Price,Currency,Market
 09-06-2022,INFY.NS,Buy,900,1388.83,INR,in_market
-13-10-2021,PAGEIND.NS,Sell,10,36126.73,USD,in_market
+13-10-2021,PAGEIND.NS,Sell,10,36126.73,INR,in_market
 15-07-2021,HDFCBANK.NS,Buy,1000,711.67,INR,in_market
-15-07-2021,INFY.NS,Sell,200,1432.35,USD,in_market
-17-02-2021,INFY.NS,Buy,500,1154.87,USD,in_market
+15-07-2021,INFY.NS,Sell,200,1432.35,INR,in_market
+17-02-2021,INFY.NS,Buy,500,1154.87,INR,in_market
 19-11-2020,BRK-B,Buy,200,228.8,USD,us_market
 17-10-2019,INFY.NS,Sell,900,665.32,INR,in_market
 05-06-2019,AAPL,Buy,200,43.92,USD,us_market
