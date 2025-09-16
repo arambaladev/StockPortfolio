@@ -208,6 +208,19 @@
 
     <h2 id="grand-total" style="text-align: center; margin-top: 20px; margin-bottom: 20px;"></h2>
 
+    <!-- Grand Total Charts Section -->
+    <div id="grand-total-charts-container" style="display: none; text-align: center; margin-bottom: 20px;">
+        <div style="margin-top: 15px; text-align: left;">
+            <button id="grand-total-charts-toggle" onclick="toggleCharts('grand-total')" class="action-button" style="background-color: #007bff; padding: 8px 12px; font-size: 14px;">Show Charts</button>
+        </div>
+        <div id="grand-total-charts-section" style="display: none; margin-top: 20px;">
+            <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
+                <div style="width: 25%; min-width: 250px;"><canvas id="grand-total-stock-chart"></canvas></div>
+                <div style="width: 25%; min-width: 250px;"><canvas id="grand-total-sector-chart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
     {% set sort_by = request.args.get('sort_by', 'value') %}
     {% set order = request.args.get('order', 'desc') %}
 
@@ -370,8 +383,8 @@
             {% endif %}
 
             // --- Chart Rendering ---
-            function renderPieChart(ctx, title, labels, data) {
-                new Chart(ctx, {
+            function renderPieChart(ctx, title, labels, data, currencySymbol = '$') {
+                return new Chart(ctx, {
                     type: 'pie',
                     data: {
                         labels: labels,
@@ -400,10 +413,18 @@
                                         if (label) {
                                             label += ': ';
                                         }
-                                        const value = context.raw;
+                                        const value = parseFloat(context.raw);
                                         const total = context.chart.getDatasetMeta(0).total;
                                         const percentage = ((value / total) * 100).toFixed(2);
-                                        return `${label} ${value.toLocaleString()} (${percentage}%)`;
+                                        
+                                        let formattedValue;
+                                        if (currencySymbol === '₹') {
+                                            formattedValue = formatCurrency(value, true);
+                                        } else {
+                                            formattedValue = formatCurrency(value, false);
+                                        }
+
+                                        return `${label} ${currencySymbol}${formattedValue} (${percentage}%)`;
                                     }
                                 }
                             },
@@ -416,21 +437,21 @@
             // USD Charts
             const usdStockCtx = document.getElementById('usd-stock-chart');
             if (usdStockCtx) {
-                renderPieChart(usdStockCtx, 'Stock Allocation (USD)', {{ usd_portfolio_data|map(attribute='tickersymbol')|list|tojson }}, {{ usd_portfolio_data|map(attribute='value')|list|tojson }});
+                renderPieChart(usdStockCtx, 'Stock Allocation (USD)', {{ usd_portfolio_data|map(attribute='tickersymbol')|list|tojson }}, {{ usd_portfolio_data|map(attribute='value')|list|tojson }}, '$');
             }
             const usdSectorCtx = document.getElementById('usd-sector-chart');
             if (usdSectorCtx) {
-                renderPieChart(usdSectorCtx, 'Sector Allocation (USD)', {{ usd_sector_data.keys()|list|tojson }}, {{ usd_sector_data.values()|list|tojson }});
+                renderPieChart(usdSectorCtx, 'Sector Allocation (USD)', {{ usd_sector_data.keys()|list|tojson }}, {{ usd_sector_data.values()|list|tojson }}, '$');
             }
 
             // INR Charts
             const inrStockCtx = document.getElementById('inr-stock-chart');
             if (inrStockCtx) {
-                renderPieChart(inrStockCtx, 'Stock Allocation (INR)', {{ inr_portfolio_data|map(attribute='tickersymbol')|list|tojson }}, {{ inr_portfolio_data|map(attribute='value')|list|tojson }});
+                renderPieChart(inrStockCtx, 'Stock Allocation (INR)', {{ inr_portfolio_data|map(attribute='tickersymbol')|list|tojson }}, {{ inr_portfolio_data|map(attribute='value')|list|tojson }}, '₹');
             }
             const inrSectorCtx = document.getElementById('inr-sector-chart');
             if (inrSectorCtx) {
-                renderPieChart(inrSectorCtx, 'Sector Allocation (INR)', {{ inr_sector_data.keys()|list|tojson }}, {{ inr_sector_data.values()|list|tojson }});
+                renderPieChart(inrSectorCtx, 'Sector Allocation (INR)', {{ inr_sector_data.keys()|list|tojson }}, {{ inr_sector_data.values()|list|tojson }}, '₹');
             }
 
             // --- Reporting Currency Logic ---
@@ -440,6 +461,10 @@
             const inrPortfolioValue = {{ inr_total_value }};
             const usdInvestedAmount = {{ usd_invested_amount }};
             const inrInvestedAmount = {{ inr_invested_amount }};
+
+            // Chart instances to be destroyed and recreated
+            let grandTotalStockChart = null;
+            let grandTotalSectorChart = null;
 
             function formatCurrency(value, isINR = false) {
                 if (isINR) {
@@ -481,6 +506,8 @@
                     inrGainLossHeader.innerHTML = `Total Gain/Loss: <span style="${(inrPortfolioValue - inrInvestedAmount) >= 0 ? 'color: green;' : 'color: red;'}">₹${formatCurrency(inrPortfolioValue - inrInvestedAmount, true)}</span>`;
                 }
 
+                let allStocksData = [], allSectorsData = {};
+
                 // --- Calculate and Display Grand Total ---
                 if (selectedCurrency === 'USD') {
                     const totalInUSD = usdPortfolioValue + (inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0);
@@ -496,6 +523,21 @@
                         inrInvestedAmountHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">($${formatCurrency(convertedInvestedAmount)})</span>`;
                         inrGainLossHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(<span style="${convertedGainLoss >= 0 ? 'color: green;' : 'color: red;'}">$${formatCurrency(convertedGainLoss)}</span>)</span>`;
                     }
+
+                    // Prepare data for Grand Total USD charts
+                    allStocksData = {{ usd_portfolio_data|tojson }};
+                    allSectorsData = {{ usd_sector_data|tojson }};
+                    const inrDataUSD = {{ inr_portfolio_data|tojson }}.map(item => {
+                        item.value = item.value / usdinrRate;
+                        return item;
+                    });
+                    allStocksData = allStocksData.concat(inrDataUSD);
+
+                    const inrSectorDataUSD = {{ inr_sector_data|tojson }};
+                    for (const sector in inrSectorDataUSD) {
+                        const valueInUSD = inrSectorDataUSD[sector] / usdinrRate;
+                        allSectorsData[sector] = (allSectorsData[sector] || 0) + valueInUSD;
+                    }
                 } else if (selectedCurrency === 'INR') {
                     const totalInINR = (usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0) + inrPortfolioValue;
                     grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">₹${formatCurrency(totalInINR, true)}</span>`;
@@ -510,6 +552,40 @@
                         usdInvestedAmountHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(₹${formatCurrency(convertedInvestedAmount, true)})</span>`;
                         usdGainLossHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(<span style="${convertedGainLoss >= 0 ? 'color: green;' : 'color: red;'}">₹${formatCurrency(convertedGainLoss, true)}</span>)</span>`;
                     }
+
+                    // Prepare data for Grand Total INR charts
+                    allStocksData = {{ inr_portfolio_data|tojson }};
+                    allSectorsData = {{ inr_sector_data|tojson }};
+                    const usdDataINR = {{ usd_portfolio_data|tojson }}.map(item => {
+                        item.value = item.value * usdinrRate;
+                        return item;
+                    });
+                    allStocksData = allStocksData.concat(usdDataINR);
+
+                    const usdSectorDataINR = {{ usd_sector_data|tojson }};
+                    for (const sector in usdSectorDataINR) {
+                        const valueInINR = usdSectorDataINR[sector] * usdinrRate;
+                        allSectorsData[sector] = (allSectorsData[sector] || 0) + valueInINR;
+                    }
+                }
+
+                // --- Render Grand Total Charts ---
+                if (grandTotalStockChart) grandTotalStockChart.destroy();
+                if (grandTotalSectorChart) grandTotalSectorChart.destroy();
+
+                const grandTotalStockCtx = document.getElementById('grand-total-stock-chart');
+                const grandTotalCurrencySymbol = selectedCurrency === 'INR' ? '₹' : '$';
+                grandTotalStockChart = renderPieChart(grandTotalStockCtx, `Stock Allocation (${selectedCurrency})`, allStocksData.map(s => s.tickersymbol), allStocksData.map(s => s.value.toFixed(2)), grandTotalCurrencySymbol);
+
+                const grandTotalSectorCtx = document.getElementById('grand-total-sector-chart');
+                grandTotalSectorChart = renderPieChart(grandTotalSectorCtx, `Sector Allocation (${selectedCurrency})`, Object.keys(allSectorsData), Object.values(allSectorsData).map(v => v.toFixed(2)), grandTotalCurrencySymbol);
+
+                // Show the grand total charts container if there is data
+                const grandTotalChartsContainer = document.getElementById('grand-total-charts-container');
+                if (usdPortfolioValue > 0 || inrPortfolioValue > 0) {
+                    grandTotalChartsContainer.style.display = 'block';
+                } else {
+                    grandTotalChartsContainer.style.display = 'none';
                 }
             }
 
