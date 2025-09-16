@@ -216,17 +216,21 @@
     {% macro portfolio_table(title, data, total_value, invested_amount, currency_symbol, currency_code, table_id) %}
         {% if data %}
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; margin-top: 30px;">
-                <h2 style="text-align: left; margin-top: 0; margin-bottom: 0;">{{ title }} - Current Value: {{ currency_symbol }}{{ total_value|format_currency if currency_symbol == '$' else total_value|format_inr_currency }}</h2>
+                <h2 id="{{ currency_code }}-current-value-header" style="text-align: left; margin-top: 0; margin-bottom: 0;">{{ title }} - Current Value: {% if currency_symbol == '₹' %}{{ currency_symbol }}{{ total_value|format_inr_currency }}{% else %}{{ currency_symbol }}{{ total_value|format_currency }}{% endif %}</h2>
             </div>
             <div style="text-align: left; margin-top: -10px; margin-bottom: 15px;">
-                <span style="font-size: 0.9em; font-style: italic;">Invested Amount: {{ currency_symbol }}{{ invested_amount|format_currency if currency_symbol == '$' else invested_amount|format_inr_currency }}</span>
+                <span id="{{ currency_code }}-invested-amount-header" style="font-size: 0.9em; font-style: italic;">Invested Amount: {{ currency_symbol }}{{ invested_amount|format_currency if currency_symbol == '$' else invested_amount|format_inr_currency }}</span>
                 {% set gain_loss = total_value - invested_amount %}
-                <span style="font-size: 0.9em; font-style: italic; margin-left: 20px;">
+                <span id="{{ currency_code }}-gain-loss-header" style="font-size: 0.9em; font-style: italic; margin-left: 20px;">
                     Total Gain/Loss: 
                     {% if gain_loss >= 0 %}
-                        <span style="color: green;">{{ currency_symbol }}{{ gain_loss|format_currency if currency_symbol == '$' else gain_loss|format_inr_currency }}</span>
+                        <span style="color: green;">
+                            {{ currency_symbol }}{% if currency_symbol == '₹' %}{{ gain_loss|format_inr_currency }}{% else %}{{ gain_loss|format_currency }}{% endif %}
+                        </span>
                     {% else %}
-                        <span style="color: red;">{{ currency_symbol }}{{ gain_loss|format_currency if currency_symbol == '$' else gain_loss|format_inr_currency }}</span>
+                        <span style="color: red;">
+                            {{ currency_symbol }}{% if currency_symbol == '₹' %}{{ gain_loss|format_inr_currency }}{% else %}{{ gain_loss|format_currency }}{% endif %}
+                        </span>
                     {% endif %}
                 </span>
             </div>
@@ -258,15 +262,15 @@
                         </div>
                     </td>
                     <td>{{ item.quantity }}</td>
-                    <td>{{ currency_symbol }}{{ item.latest_price|format_currency if currency_symbol == '$' else item.latest_price|format_inr_currency }}</td>
-                    <td>{{ currency_symbol }}{{ item.cost_basis|format_currency if currency_symbol == '$' else item.cost_basis|format_inr_currency }}</td>
-                    <td>{{ currency_symbol }}{{ item.value|format_currency if currency_symbol == '$' else item.value|format_inr_currency }}</td>
+                    <td>{{ currency_symbol }}{% if currency_symbol == '₹' %}{{ item.latest_price|format_inr_currency }}{% else %}{{ item.latest_price|format_currency }}{% endif %}</td>
+                    <td>{{ currency_symbol }}{% if currency_symbol == '₹' %}{{ item.cost_basis|format_inr_currency }}{% else %}{{ item.cost_basis|format_currency }}{% endif %}</td>
+                    <td>{{ currency_symbol }}{% if currency_symbol == '₹' %}{{ item.value|format_inr_currency }}{% else %}{{ item.value|format_currency }}{% endif %}</td>
                     <td>
                         {% set item_gain_loss = item.value - item.cost_basis %}
                         {% if item_gain_loss >= 0 %}
-                            <span style="color: green;">{{ currency_symbol }}{{ item_gain_loss|format_currency if currency_symbol == '$' else item_gain_loss|format_inr_currency }}</span>
+                            <span style="color: green;">{{ currency_symbol }}{% if currency_symbol == '₹' %}{{ item_gain_loss|format_inr_currency }}{% else %}{{ item_gain_loss|format_currency }}{% endif %}</span>
                         {% else %}
-                            <span style="color: red;">{{ currency_symbol }}{{ item_gain_loss|format_currency if currency_symbol == '$' else item_gain_loss|format_inr_currency }}</span>
+                            <span style="color: red;">{{ currency_symbol }}{% if currency_symbol == '₹' %}{{ item_gain_loss|format_inr_currency }}{% else %}{{ item_gain_loss|format_currency }}{% endif %}</span>
                         {% endif %}
                     </td>
                     <td>{{ "%.2f"|format(item.percentage) }}%</td>
@@ -345,45 +349,9 @@
             const usdinrRate = {{ usdinr_rate }};
             const usdPortfolioValue = {{ usd_total_value }};
             const inrPortfolioValue = {{ inr_total_value }};
+            const usdInvestedAmount = {{ usd_invested_amount }};
+            const inrInvestedAmount = {{ inr_invested_amount }};
 
-            function formatCurrency(value) {
-                return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            }
-
-            function updateReportingCurrency() {
-                const selectedCurrency = currencyPref.value;
-                const usdTable = document.getElementById('usd-portfolio-table');
-                const inrTable = document.getElementById('inr-portfolio-table');
-                const grandTotalDisplay = document.getElementById('grand-total');
-
-                // Reset headers to original state
-                if (usdTable) {
-                    usdTable.previousElementSibling.previousElementSibling.querySelector('h2').innerHTML = `US Portfolio (USD) - Current Value: $${formatCurrency(usdPortfolioValue)}`;
-                }
-                if (inrTable) {
-                    inrTable.previousElementSibling.previousElementSibling.querySelector('h2').innerHTML = `Indian Portfolio (INR) - Current Value: ₹${formatCurrency(inrPortfolioValue, true)}`;
-                }
-
-                if (selectedCurrency === 'USD') {
-                    const totalInUSD = usdPortfolioValue + (inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0);
-                    grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">$${formatCurrency(totalInUSD)}</span>`;
-
-                    if (inrPortfolioValue > 0) {
-                        const convertedValue = inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0;
-                        inrTable.previousElementSibling.previousElementSibling.querySelector('h2').innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">($${formatCurrency(convertedValue)})</span>`;
-                    }
-                } else if (selectedCurrency === 'INR') {
-                    const totalInINR = (usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0) + inrPortfolioValue;
-                    grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">₹${formatCurrency(totalInINR, true)}</span>`;
-
-                    if (usdPortfolioValue > 0) {
-                        const convertedValue = usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0;
-                        usdTable.previousElementSibling.previousElementSibling.querySelector('h2').innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(₹${formatCurrency(convertedValue, true)})</span>`;
-                    }
-                }
-            }
-
-            // Overwrite the formatCurrency function to handle INR style
             function formatCurrency(value, isINR = false) {
                 if (isINR) {
                     let valStr = value.toFixed(2);
@@ -397,6 +365,55 @@
                     return valStr;
                 }
                 return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            function updateReportingCurrency() {
+                const selectedCurrency = currencyPref.value;
+                const grandTotalDisplay = document.getElementById('grand-total');
+                
+                // Get elements by their new IDs
+                const usdCurrentValueHeader = document.getElementById('usd-current-value-header');
+                const inrCurrentValueHeader = document.getElementById('inr-current-value-header');
+
+                const usdInvestedAmountHeader = document.getElementById('usd-invested-amount-header');
+                const inrInvestedAmountHeader = document.getElementById('inr-invested-amount-header');
+                const usdGainLossHeader = document.getElementById('usd-gain-loss-header');
+                const inrGainLossHeader = document.getElementById('inr-gain-loss-header');
+
+                // Reset headers to original state
+                if (usdCurrentValueHeader) {
+                    usdCurrentValueHeader.innerHTML = `US Portfolio (USD) - Current Value: $${formatCurrency(usdPortfolioValue)}`;
+                    usdInvestedAmountHeader.innerHTML = `Invested Amount: $${formatCurrency(usdInvestedAmount)}`;
+                    usdGainLossHeader.innerHTML = `Total Gain/Loss: <span style="${(usdPortfolioValue - usdInvestedAmount) >= 0 ? 'color: green;' : 'color: red;'}">$${formatCurrency(usdPortfolioValue - usdInvestedAmount)}</span>`;
+                }
+                if (inrCurrentValueHeader) {
+                    inrCurrentValueHeader.innerHTML = `Indian Portfolio (INR) - Current Value: ₹${formatCurrency(inrPortfolioValue, true)}`;
+                    inrInvestedAmountHeader.innerHTML = `Invested Amount: ₹${formatCurrency(inrInvestedAmount, true)}`;
+                    inrGainLossHeader.innerHTML = `Total Gain/Loss: <span style="${(inrPortfolioValue - inrInvestedAmount) >= 0 ? 'color: green;' : 'color: red;'}">₹${formatCurrency(inrPortfolioValue - inrInvestedAmount, true)}</span>`;
+                }
+
+                // --- Calculate and Display Grand Total ---
+                if (selectedCurrency === 'USD') {
+                    const totalInUSD = usdPortfolioValue + (inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0);
+                    grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">$${formatCurrency(totalInUSD)}</span>`;
+
+                    // --- Update INR Portfolio with USD conversion ---
+                    if (inrCurrentValueHeader && inrPortfolioValue > 0) {
+                        const convertedValue = inrPortfolioValue > 0 ? (inrPortfolioValue / usdinrRate) : 0;
+                        inrCurrentValueHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">($${formatCurrency(convertedValue, false)})</span>`;
+                        // We will add the logic for Invested Amount and Gain/Loss here in the next step.
+                    }
+                } else if (selectedCurrency === 'INR') {
+                    const totalInINR = (usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0) + inrPortfolioValue;
+                    grandTotalDisplay.innerHTML = `Grand Total: <span style="color: maroon;">₹${formatCurrency(totalInINR, true)}</span>`;
+
+                    // --- Update USD Portfolio with INR conversion ---
+                    if (usdCurrentValueHeader && usdPortfolioValue > 0) {
+                        const convertedValue = usdPortfolioValue > 0 ? (usdPortfolioValue * usdinrRate) : 0;
+                        usdCurrentValueHeader.innerHTML += ` <span style="font-weight: normal; font-size: 0.9em;">(₹${formatCurrency(convertedValue, true)})</span>`;
+                        // We will add the logic for Invested Amount and Gain/Loss here in the next step.
+                    }
+                }
             }
 
             if (usdPortfolioValue === 0 && inrPortfolioValue === 0) {
