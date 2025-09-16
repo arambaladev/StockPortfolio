@@ -1,31 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Transactions</title>
+{% extends "base.html" %}
+
+{% block title %}Transactions{% endblock %}
+
+{% block page_title %}Transactions{% endblock %}
+
+{% block head_styles %}
     <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .auth-links {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-        .auth-links a {
-            text-decoration: none;
-            color: #007bff;
-            font-weight: bold;
-        }
-        .auth-links a:hover {
-            text-decoration: underline;
-        }
-        th, td {
-            border: 1px solid #dddddd;
-            text-align: left;
-            padding: 8px;
-        }
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
@@ -125,21 +105,12 @@
             color: maroon;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <!-- Loading Overlay -->
     <div id="loading-overlay"><p>Importing transactions... Please wait.</p></div>
     <div id="custom-alert"></div>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>Transactions</h1>
-        <div class="auth-links">
-            {% if session.user_id %}
-                <span>Welcome, {{ session.username }}!</span>
-                <a href="{{ url_for('logout') }}">Logout</a>
-            {% endif %}
-        </div>
-    </div>
-
     {% macro sortable_th(column, display_name, current_sort_by, current_order) %}
         {% set new_order = 'asc' if current_sort_by == column and current_order == 'desc' else 'desc' %}
         <th style="background-color: maroon; color: white;">
@@ -539,5 +510,4 @@
             });
         });
     </script>
-</body>
-</html>
+{% endblock %}

@@ -67,6 +67,7 @@ load_dotenv() # Load environment variables from .env file
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key' # Replace with a strong secret key
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=30) # Remember me for 30 days
 
 # Configure the database
 # Database configuration from environment variables
@@ -143,6 +144,9 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
+            # Set session to be permanent only if 'Remember Me' is checked.
+            # Otherwise, it's a browser-session cookie which is cleared on browser close.
+            session.permanent = bool(request.form.get('remember'))
             session['user_id'] = user.id
             session['username'] = user.username
             session['is_admin'] = user.is_admin
