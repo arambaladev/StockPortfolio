@@ -106,14 +106,24 @@ def format_inr_currency(value):
     try:
         if value is None:
             return ""
-        # Convert to string with 2 decimal places
-        s = f"{value:.2f}"
-        # Split integer and decimal parts
-        parts = s.split('.')
-        integer_part = parts[0]
-        # Apply Indian comma formatting
-        formatted_integer = integer_part[:-3] + ',' + integer_part[-3:] if len(integer_part) > 3 else integer_part
-        return formatted_integer.replace(',','',1).replace(',',',').replace('-,','-') + '.' + parts[1]
+        
+        is_negative = value < 0
+        if is_negative:
+            value = abs(value)
+
+        val_str = f"{value:,.2f}" # Use standard comma formatting first
+        parts = val_str.split('.')
+        integer_part = parts[0].replace(',', '') # Remove standard commas
+        decimal_part = parts[1]
+
+        if len(integer_part) > 3:
+            last_three = integer_part[-3:]
+            other_digits = integer_part[:-3]
+            formatted_integer = other_digits.replace('', ',').lstrip(',') # Incorrect, let's fix
+            formatted_integer = ",".join([other_digits[max(i-2,0):i] for i in range(len(other_digits), 0, -2)][::-1])
+            return ('-' if is_negative else '') + formatted_integer + ',' + last_three + '.' + decimal_part
+        
+        return ('-' if is_negative else '') + integer_part + '.' + decimal_part
     except (ValueError, TypeError):
         return value
 

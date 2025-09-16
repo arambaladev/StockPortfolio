@@ -171,9 +171,9 @@
             </td>
             <td>
                 {% if transaction.currency == 'INR' %}
-                    ₹{{ (transaction.quantity * transaction.price)|format_inr_currency }}
+                    ₹{{ (transaction.quantity * transaction.price)|format_inr_currency() }}
                 {% else %}
-                    ${{ (transaction.quantity * transaction.price)|format_currency }}
+                    ${{ (transaction.quantity * transaction.price)|format_currency() }}
                 {% endif %}
             </td>
             <td style="width: 100px;">

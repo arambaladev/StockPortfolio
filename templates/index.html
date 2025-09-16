@@ -219,7 +219,7 @@
                 <h2 id="{{ currency_code }}-current-value-header" style="text-align: left; margin-top: 0; margin-bottom: 0;">{{ title }} - Current Value: {% if currency_symbol == '₹' %}{{ currency_symbol }}{{ total_value|format_inr_currency }}{% else %}{{ currency_symbol }}{{ total_value|format_currency }}{% endif %}</h2>
             </div>
             <div style="text-align: left; margin-top: -10px; margin-bottom: 15px;">
-                <span id="{{ currency_code }}-invested-amount-header" style="font-size: 0.9em; font-style: italic;">Invested Amount: {{ currency_symbol }}{{ invested_amount|format_currency if currency_symbol == '$' else invested_amount|format_inr_currency }}</span>
+                <span id="{{ currency_code }}-invested-amount-header" style="font-size: 0.9em; font-style: italic;">Invested Amount: {{ currency_symbol }}{% if currency_symbol == '₹' %}{{ invested_amount|format_inr_currency }}{% else %}{{ invested_amount|format_currency }}{% endif %}</span>
                 {% set gain_loss = total_value - invested_amount %}
                 <span id="{{ currency_code }}-gain-loss-header" style="font-size: 0.9em; font-style: italic; margin-left: 20px;">
                     Total Gain/Loss: 
