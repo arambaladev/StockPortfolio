@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash, make_response
 from functools import wraps
-from models import db, Stock, Transaction, Portfolio, Price, User
+from models import db, Stock, Transaction, Portfolio, User
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 import os
@@ -146,7 +146,6 @@ def login():
             session['user_id'] = user.id
             session['username'] = user.username
             session['is_admin'] = user.is_admin
-            update_user_portfolio_prices(user.id)
             return redirect(url_for('index', login_success='true'))
         else:
             flash('Invalid username or password.', 'danger')
@@ -174,6 +173,7 @@ def logout():
     session.pop('user_id', None)
     session.pop('username', None)
     session.pop('is_admin', None)
+    session.pop('_flashes', None) # Clear any pending flash messages
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
 
@@ -208,9 +208,15 @@ def index():
     inr_sector_data = {} # For INR portfolio
 
     for item in portfolio_items:
-        # Get latest price from Price table for display in portfolio
-        price_entry = Price.query.filter_by(tickersymbol=item.tickersymbol).order_by(Price.date.desc()).first()
-        latest_price = price_entry.price if price_entry else 0.0
+        # Get latest price on-the-fly from yfinance
+        latest_price = 0.0
+        try:
+            ticker = yf.Ticker(item.tickersymbol)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                latest_price = hist['Close'].iloc[-1]
+        except Exception as e:
+            print(f"Could not fetch latest price for {item.tickersymbol}: {e}")
         item_value = item.quantity * latest_price
 
         # Prepare data for XIRR calculation
@@ -495,10 +501,15 @@ def update_portfolio(tickersymbol, user_id):
 
     total_quantity = buy_quantity - sell_quantity
 
-    # Get latest price from Price table
-    # Order by date descending to get the most recent price
-    price_entry = Price.query.filter_by(tickersymbol=tickersymbol).order_by(Price.date.desc()).first()
-    latest_price = price_entry.price if price_entry else 0.0
+    # Get latest price on-the-fly from yfinance
+    latest_price = 0.0
+    try:
+        ticker = yf.Ticker(tickersymbol)
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            latest_price = hist['Close'].iloc[-1]
+    except Exception as e:
+        print(f"Could not fetch latest price for {tickersymbol} during portfolio update: {e}")
 
     # Calculate value
     current_value = total_quantity * latest_price
@@ -516,34 +527,6 @@ def update_portfolio(tickersymbol, user_id):
             new_portfolio_entry = Portfolio(tickersymbol=tickersymbol, quantity=total_quantity, value=current_value, user_id=user_id)
             db.session.add(new_portfolio_entry)
     db.session.commit()
-
-def update_user_portfolio_prices(user_id):
-    # Get all unique ticker symbols from the user's portfolio
-    portfolio_tickers = db.session.query(Portfolio.tickersymbol).filter_by(user_id=user_id).distinct().all()
-    portfolio_tickers = [ticker[0] for ticker in portfolio_tickers] # Extract ticker symbols from tuples
-
-    today = datetime.date.today().isoformat()
-
-    for tickersymbol in portfolio_tickers:
-        try:
-            ticker = yf.Ticker(tickersymbol)
-            hist = ticker.history(period="1d")
-            if not hist.empty:
-                latest_price = round(hist['Close'].iloc[-1], 2)
-
-                # Check if a price for today already exists for this stock
-                price_entry = Price.query.filter_by(tickersymbol=tickersymbol, date=today).first()
-                if price_entry:
-                    price_entry.price = latest_price
-                else:
-                    new_price = Price(tickersymbol=tickersymbol, date=today, price=latest_price)
-                    db.session.add(new_price)
-            else:
-                print(f"No historical data found for {tickersymbol} for today.")
-        except Exception as e:
-            print(f"Error updating price for {tickersymbol}: {e}")
-    
-    db.session.commit() # Commit all price changes at once
 
 
 def calculate_fifo_cost_basis(tickersymbol, user_id, current_quantity):
@@ -577,98 +560,28 @@ def calculate_fifo_cost_basis(tickersymbol, user_id, current_quantity):
 @app.route('/transactions')
 @login_required
 def transactions():
+    sort_by = request.args.get('sort_by', 'date') # Default sort by date if not specified
+    order = request.args.get('order', 'desc') # Default order descending
+
     page = request.args.get('page', 1, type=int)
     per_page = 15 # You can adjust this number
-    pagination = Transaction.query.filter_by(user_id=session['user_id']).order_by(Transaction.date.desc(), Transaction.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    # Base query
+    query = Transaction.query.filter_by(user_id=session['user_id'])
+
+    # Sorting logic
+    sort_column = getattr(Transaction, sort_by, Transaction.date) # Default to date column if invalid
+    if order == 'asc':
+        query = query.order_by(sort_column.asc(), Transaction.id.asc())
+    else:
+        query = query.order_by(sort_column.desc(), Transaction.id.desc())
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     transactions = pagination.items
     stocks = Stock.query.order_by(Stock.tickersymbol).all() # Fetch all stocks, ordered alphabetically
     # Determine the latest ticker symbol for defaulting. Assuming latest means last alphabetically.
     latest_tickersymbol = stocks[-1].tickersymbol if stocks else ''
-    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol, pagination=pagination)
-
-@app.route('/prices')
-@admin_required
-def prices():
-    prices = Price.query.all()
-    stocks = Stock.query.all() # Fetch all stocks for the modal dropdown
-    return render_template('prices.html', prices=prices, stocks=stocks)
-
-@app.route('/add_price', methods=['GET', 'POST'])
-@admin_required
-def add_price():
-    if request.method == 'POST':
-        tickersymbol = request.form['tickersymbol']
-        date = request.form['date']
-        price = request.form['price']
-
-        # Check if the stock exists
-        stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
-        if not stock:
-            return "Stock not found", 404
-
-        new_price = Price(tickersymbol=tickersymbol, date=date, price=float(price))
-        db.session.add(new_price)
-        db.session.commit()
-        return redirect(url_for('prices'))
-    
-    return redirect(url_for('prices')) # Redirect GET requests to the prices list
-
-@app.route('/edit_price/<int:id>', methods=['GET', 'POST'])
-@admin_required
-def edit_price(id):
-    price_entry = Price.query.get_or_404(id)
-    if request.method == 'POST':
-        price_entry.tickersymbol = request.form['tickersymbol']
-        price_entry.date = request.form['date']
-        price_entry.price = float(request.form['price'])
-
-        # Check if the stock exists
-        stock = Stock.query.filter_by(tickersymbol=price_entry.tickersymbol).first()
-        if not stock:
-            return "Stock not found", 404
-
-        db.session.commit()
-        return redirect(url_for('prices'))
-    
-    stocks = Stock.query.all() # To populate dropdown
-    return render_template('edit_price.html', price_entry=price_entry, stocks=stocks)
-
-@app.route('/delete_price/<int:id>')
-@admin_required
-def delete_price(id):
-    price_entry = Price.query.get_or_404(id)
-    db.session.delete(price_entry)
-    db.session.commit()
-    return redirect(url_for('prices'))
-
-@app.route('/update_prices_from_google')
-@admin_required
-def update_prices_from_google():
-    stocks = Stock.query.all()
-    today = datetime.date.today().isoformat()
-
-    for stock in stocks:
-        try:
-            ticker = yf.Ticker(stock.tickersymbol)
-            hist = ticker.history(period="1d")
-            if not hist.empty:
-                latest_price = round(hist['Close'].iloc[-1], 2)
-            else:
-                latest_price = 0.0 # Default if no data found
-
-            # Check if a price for today already exists for this stock
-            price_entry = Price.query.filter_by(tickersymbol=stock.tickersymbol, date=today).first()
-            if price_entry:
-                price_entry.price = latest_price
-            else:
-                new_price = Price(tickersymbol=stock.tickersymbol, date=today, price=latest_price)
-                db.session.add(new_price)
-        except Exception as e:
-            # Optionally, add a placeholder price or skip this stock
-            pass # Continue to next stock even if one fails
-    
-    db.session.commit()
-    return redirect(url_for('prices'))
+    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol, pagination=pagination, sort_by=sort_by, order=order)
 
 @app.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
@@ -694,36 +607,7 @@ def add_transaction():
         new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), market=market, currency=currency, user_id=session['user_id'])
         db.session.add(new_transaction)
         db.session.commit()
-
-        # Update Price table with transaction price
-        price_entry = Price.query.filter_by(tickersymbol=tickersymbol, date=date).first()
-        if price_entry:
-            price_entry.price = float(price)
-        else:
-            new_price_entry = Price(tickersymbol=tickersymbol, date=date, price=float(price))
-            db.session.add(new_price_entry)
         
-        # Fetch and add the latest price
-        try:
-            today = datetime.date.today().isoformat()
-            ticker = yf.Ticker(tickersymbol)
-            hist = ticker.history(period="1d")
-            if not hist.empty:
-                latest_price = round(hist['Close'].iloc[-1], 2)
-                
-                # Check if a price for today already exists
-                latest_price_entry = Price.query.filter_by(tickersymbol=tickersymbol, date=today).first()
-                if latest_price_entry:
-                    latest_price_entry.price = latest_price
-                else:
-                    new_latest_price_entry = Price(tickersymbol=tickersymbol, date=today, price=latest_price)
-                    db.session.add(new_latest_price_entry)
-        except Exception as e:
-            print(f"Error fetching latest price for {tickersymbol}: {e}")
-            # Decide if you want to flash a message to the user
-            
-        db.session.commit() # Commit all price changes
-
         update_portfolio(tickersymbol, session['user_id'])
         return jsonify({'success': True, 'redirect_url': url_for('index')})
     
@@ -753,35 +637,7 @@ def edit_transaction(id):
                 return "Insufficient quantity to sell after considering other transactions.", 400 # Bad Request
 
         db.session.commit()
-
-        # Update Price table with transaction price
-        price_entry = Price.query.filter_by(tickersymbol=transaction.tickersymbol, date=transaction.date).first()
-        if price_entry:
-            price_entry.price = float(transaction.price)
-        else:
-            new_price_entry = Price(tickersymbol=transaction.tickersymbol, date=transaction.date, price=float(transaction.price))
-            db.session.add(new_price_entry)
-
-        # Fetch and add the latest price
-        try:
-            today = datetime.date.today().isoformat()
-            ticker = yf.Ticker(transaction.tickersymbol)
-            hist = ticker.history(period="1d")
-            if not hist.empty:
-                latest_price = round(hist['Close'].iloc[-1], 2)
-                
-                # Check if a price for today already exists
-                latest_price_entry = Price.query.filter_by(tickersymbol=transaction.tickersymbol, date=today).first()
-                if latest_price_entry:
-                    latest_price_entry.price = latest_price
-                else:
-                    new_latest_price_entry = Price(tickersymbol=transaction.tickersymbol, date=today, price=latest_price)
-                    db.session.add(new_latest_price_entry)
-        except Exception as e:
-            print(f"Error fetching latest price for {transaction.tickersymbol}: {e}")
-
-        db.session.commit() # Commit all price changes
-
+        
         update_portfolio(transaction.tickersymbol, session['user_id'])
         return redirect(url_for('transactions'))
     
@@ -872,9 +728,15 @@ def lot_details(tickersymbol):
     ).order_by(Transaction.date, Transaction.id).all()
 
     lots = []
-    # Get the latest price for the stock once
-    price_entry = Price.query.filter_by(tickersymbol=tickersymbol).order_by(Price.date.desc()).first()
-    latest_price = price_entry.price if price_entry else 0.0
+    # Get the latest price for the stock once from yfinance
+    latest_price = 0.0
+    try:
+        ticker = yf.Ticker(tickersymbol)
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            latest_price = hist['Close'].iloc[-1]
+    except Exception as e:
+        print(f"Could not fetch latest price for {tickersymbol} for lot details: {e}")
     stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
     currency = stock.currency if stock else 'USD'
 

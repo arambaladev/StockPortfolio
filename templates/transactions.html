@@ -8,6 +8,19 @@
             width: 100%;
             border-collapse: collapse;
         }
+        .auth-links {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .auth-links a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
         th, td {
             border: 1px solid #dddddd;
             text-align: left;
@@ -96,11 +109,53 @@
         .pagination a:hover:not(.active) {
             background-color: #ddd;
         }
+        /* Loading overlay styles */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 1002; /* Higher than modal */
+            text-align: center;
+            padding-top: 20%;
+            font-size: 24px;
+            color: maroon;
+        }
     </style>
 </head>
 <body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay"><p>Importing transactions... Please wait.</p></div>
     <div id="custom-alert"></div>
-    <h1>Transactions</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Transactions</h1>
+        <div class="auth-links">
+            {% if session.user_id %}
+                <span>Welcome, {{ session.username }}!</span>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% macro sortable_th(column, display_name, current_sort_by, current_order) %}
+        {% set new_order = 'asc' if current_sort_by == column and current_order == 'desc' else 'desc' %}
+        <th style="background-color: maroon; color: white;">
+            <a href="{{ url_for('transactions', sort_by=column, order=new_order) }}" style="color: white; text-decoration: none; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>{{ display_name }}</span>
+                <span>
+                    {% if current_sort_by == column %}
+                        {{ '▼' if current_order == 'desc' else '▲' }}
+                    {% else %}
+                        <span style="color: #ccc;">▲▼</span>
+                    {% endif %}
+                </span>
+            </a>
+        </th>
+    {% endmacro %}
+
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <a href="{{ url_for('index') }}">
             <button style="background-color: #007bff; border: none; padding: 8px 12px; cursor: pointer; border-radius: 5px;">
@@ -115,13 +170,13 @@
     </div>
     <table>
         <tr>
-            <th style="background-color: maroon; color: white;">Ticker Symbol</th>
-            <th style="background-color: maroon; color: white;">Operation</th>
-            <th style="background-color: maroon; color: white;">Quantity</th>
-            <th style="background-color: maroon; color: white;">Date</th>
-            <th style="background-color: maroon; color: white;">Price</th>
-            <th style="background-color: maroon; color: white;">Total Value</th>
-            <th style="width: 100px; background-color: maroon; color: white;">Actions</th>
+            {{ sortable_th('tickersymbol', 'Ticker Symbol', sort_by, order) }}
+            {{ sortable_th('operation', 'Operation', sort_by, order) }}
+            {{ sortable_th('quantity', 'Quantity', sort_by, order) }}
+            {{ sortable_th('date', 'Date', sort_by, order) }}
+            {{ sortable_th('price', 'Price', sort_by, order) }}
+            <th style="background-color: maroon; color: white;">Total Value</th> <!-- Not sortable as it's calculated -->
+            <th style="width: 100px; background-color: maroon; color: white;">Actions</th> <!-- Not sortable -->
         </tr>
         {% for transaction in transactions %}
         <tr>
@@ -154,7 +209,7 @@
 
     <div class="pagination">
         {% if pagination.has_prev %}
-            <a href="{{ url_for('transactions', page=pagination.prev_num) }}">&laquo; Previous</a>
+            <a href="{{ url_for('transactions', page=pagination.prev_num, sort_by=sort_by, order=order) }}">&laquo; Previous</a>
         {% endif %}
 
         {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
@@ -162,7 +217,7 @@
                 {% if pagination.page == page_num %}
                     <span class="current">{{ page_num }}</span>
                 {% else %}
-                    <a href="{{ url_for('transactions', page=page_num) }}">{{ page_num }}</a>
+                    <a href="{{ url_for('transactions', page=page_num, sort_by=sort_by, order=order) }}">{{ page_num }}</a>
                 {% endif %}
             {% else %}
                 <span>...</span>
@@ -170,7 +225,7 @@
         {% endfor %}
 
         {% if pagination.has_next %}
-            <a href="{{ url_for('transactions', page=pagination.next_num) }}">Next &raquo;</a>
+            <a href="{{ url_for('transactions', page=pagination.next_num, sort_by=sort_by, order=order) }}">Next &raquo;</a>
         {% endif %}
     </div>
 
@@ -181,7 +236,7 @@
                 <h2 style="color: white; text-align: center; margin: 0; flex-grow: 1;">Import Transactions from CSV</h2>
                 <span class="close-button" onclick="closeImportModal()" style="position: static; color: white; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
             </div>
-            <form method="post" action="{{ url_for('import_transactions') }}" enctype="multipart/form-data" style="margin-top: 20px;">
+            <form id="importForm" method="post" action="{{ url_for('import_transactions') }}" enctype="multipart/form-data" style="margin-top: 20px;">
                 <p>Please ensure your CSV has the following columns in this order:</p>
                 <p><strong>Date, Ticker, Operation, Quantity, Price, Currency, Market</strong></p>
                 <p>
@@ -347,6 +402,12 @@
         const importModal = document.getElementById("importModal");
         function openImportModal() { importModal.style.display = "block"; }
         function closeImportModal() { importModal.style.display = "none"; }
+
+        // Show loading on import form submission
+        document.getElementById('importForm').addEventListener('submit', function() {
+            closeImportModal(); // Close the modal
+            document.getElementById('loading-overlay').style.display = 'block';
+        });
 
         // Close the modal if the user clicks outside of it
         window.onclick = function(event) {

@@ -51,12 +51,3 @@ class Portfolio(db.Model):
 
     def __repr__(self):
         return f'<Portfolio {self.tickersymbol}>'
-
-class Price(db.Model):
-    id = db.Column(db.Integer, Sequence('price_id_seq'), primary_key=True)
-    tickersymbol = db.Column(db.String(20), db.ForeignKey('stock.tickersymbol'), nullable=False)
-    date = db.Column(db.String(20), nullable=False)
-    price = db.Column(db.Float, nullable=False)
-
-    def __repr__(self):
-        return f'<Price {self.tickersymbol} on {self.date}>'

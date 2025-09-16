@@ -8,6 +8,19 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #dddddd; text-align: left; padding: 8px; }
         th { background-color: maroon; color: white; }
+        .auth-links {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .auth-links a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
         tr:nth-child(even) { background-color: #f2f2f2; }
         .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .action-button { background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px; text-decoration: none; }
@@ -16,6 +29,23 @@
         .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
         .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
         .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    </style>
+    <style>
+        /* Loading overlay styles */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 1002; /* Higher than modal */
+            text-align: center;
+            padding-top: 20%;
+            font-size: 24px;
+            color: maroon;
+        }
     </style>
     <style>
         /* Pagination styles from transactions.html for consistency */
@@ -44,7 +74,21 @@
     </style>
 </head>
 <body>
-    <h1>Stocks List</h1>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <p>Importing stocks... Please wait.</p>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Stocks List</h1>
+        <div class="auth-links">
+            {% if session.user_id %}
+                <span>Welcome, {{ session.username }}!</span>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="header-container">
         <a href="{{ url_for('index') }}" style="text-decoration: none;">
              <button style="background-color: #007bff; border: none; padding: 8px 12px; cursor: pointer; border-radius: 5px;">
@@ -152,7 +196,7 @@
         <div class="modal-content">
             <span class="close-button" onclick="closeImportModal()">&times;</span>
             <h2>Import Stocks from CSV</h2>
-            <form method="post" action="{{ url_for('import_stocks') }}" enctype="multipart/form-data" style="margin-top: 20px;">
+            <form id="importForm" method="post" action="{{ url_for('import_stocks') }}" enctype="multipart/form-data" style="margin-top: 20px;">
                 <p>Please ensure your CSV has the following columns in this order:</p>
                 <p><strong>Ticker, Name, Exchange, Sector, Market, Currency, Address</strong></p>
                 <p>Note: This will only add new stocks; it will not update existing ones.</p>
@@ -192,6 +236,12 @@
         const importModal = document.getElementById("importModal");
         function openImportModal() { importModal.style.display = "block"; }
         function closeImportModal() { importModal.style.display = "none"; }
+
+        // Show loading on import form submission
+        document.getElementById('importForm').addEventListener('submit', function() {
+            closeImportModal(); // Close the modal
+            document.getElementById('loading-overlay').style.display = 'block';
+        });
 
         // Edit Stock Modal
         const editModal = document.getElementById("editStockModal");

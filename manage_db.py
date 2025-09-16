@@ -6,6 +6,7 @@ from app import app, db
 from models import Stock, User
 from werkzeug.security import generate_password_hash
 from urllib.request import Request, urlopen
+from sqlalchemy import text
 
 def get_sp500_tickers():
     """Fetches S&P 500 tickers from Wikipedia."""
@@ -81,10 +82,25 @@ def clean_all_tables():
     """
     # Use the application context to ensure everything is configured correctly
     with app.app_context():
-        print("Connecting to the database to drop all tables...")
-        # This command introspects the database and drops all known tables.
-        db.drop_all()
-        print("All tables have been dropped successfully.")
+        print("Connecting to the database to drop all tables in a specific order...")
+        try:
+            # Drop tables in reverse order of creation to respect foreign key constraints.
+            # We wrap each drop in its own try/except to handle cases where a table might not exist.
+            tables_to_drop = ['portfolio', 'transaction', 'stock', 'users'] # 'price' table is already removed
+            for table_name in tables_to_drop:
+                try:
+                    db.session.execute(text(f'DROP TABLE {table_name}'))
+                    print(f"Dropped table {table_name}.")
+                except Exception as e:
+                    # ORA-00942: table or view does not exist. This is safe to ignore.
+                    if 'ORA-00942' in str(e):
+                        print(f"Table {table_name} does not exist, skipping.")
+                    else:
+                        raise # Re-raise other errors
+            db.session.commit()
+            print("Finished dropping tables.")
+        except Exception as e:
+            print(f"An error occurred while dropping tables: {e}")
 
 def initialize_database():
     """
@@ -93,9 +109,7 @@ def initialize_database():
     with app.app_context():
         print("Creating all database tables...")
         db.create_all()
-        print("Tables created successfully.")
-        
-        populate_initial_stocks()
+        print("Tables created successfully.")        
         create_admin_user()
 
 def reset_database():
@@ -107,12 +121,13 @@ def reset_database():
 
 if __name__ == "__main__":
     print("\n--- Database Management Menu ---")
-    print("1. Initialize Database (Create tables and populate initial data)")
+    print("1. Initialize Database (Create tables and admin user)")
     print("2. Reset Database (Drop all tables and re-initialize)")
     print("3. Clean Database (Drop all tables)")
-    print("4. Exit")
+    print("4. Populate Initial Stocks (S&P 500 & NIFTY 500)")
+    print("5. Exit")
     
-    choice = input("Please select an option (1-4): ")
+    choice = input("Please select an option (1-5): ")
 
     if choice == '1':
         print("\nOperation: Initialize Database.")
@@ -139,6 +154,15 @@ if __name__ == "__main__":
         else:
             print("Operation cancelled.")
     elif choice == '4':
+        print("\nOperation: Populate Initial Stocks.")
+        print("This will fetch and add stocks from S&P 500 and NIFTY 500 if they don't already exist.")
+        confirmation = input("Are you sure you want to proceed? (Y/N): ")
+        if confirmation.strip().upper() == 'Y':
+            with app.app_context():
+                populate_initial_stocks()
+        else:
+            print("Operation cancelled.")
+    elif choice == '5':
         print("Exiting.")
     else:
-        print("Invalid option. Please choose a number between 1 and 4.")
+        print("Invalid option. Please choose a number between 1 and 5.")
