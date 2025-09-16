@@ -308,6 +308,7 @@ def add_stock():
         sector = request.form.get('sector')
         market = request.form.get('market')
         currency = request.form.get('currency')
+        address = request.form.get('address')
 
         # Validate ticker symbol using yfinance
         try:
@@ -321,10 +322,13 @@ def add_stock():
             sector = sector or info.get('sector', 'N/A')
             market = market or info.get('market', 'N/A')
             currency = currency or info.get('currency', 'N/A')
+            if not address:
+                address_parts = [info.get(key) for key in ['address1', 'city', 'state', 'zip', 'country'] if info.get(key)]
+                address = ", ".join(address_parts)
         except Exception as e:
             return f"Error validating ticker symbol '{tickersymbol}': {e}", 400
 
-        new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange, sector=sector, market=market, currency=currency)
+        new_stock = Stock(name=name, tickersymbol=tickersymbol, exchange=exchange, sector=sector, market=market, currency=currency, address=address)
         db.session.add(new_stock)
         db.session.commit()
         return redirect(url_for('stocks_list')) # Redirect to stocks_list after adding
@@ -341,6 +345,7 @@ def edit_stock(id):
         stock.sector = request.form['sector']
         stock.market = request.form['market']
         stock.currency = request.form['currency']
+        stock.address = request.form.get('address')
 
         # Validate ticker symbol using yfinance
         try:
@@ -404,11 +409,11 @@ def export_stocks():
     cw = csv.writer(si)
 
     # Write header row
-    cw.writerow(['Ticker', 'Name', 'Exchange', 'Sector', 'Market', 'Currency'])
+    cw.writerow(['Ticker', 'Name', 'Exchange', 'Sector', 'Market', 'Currency', 'Address'])
 
     # Write data rows
     for s in stocks:
-        cw.writerow([s.tickersymbol, s.name, s.exchange, s.sector, s.market, s.currency])
+        cw.writerow([s.tickersymbol, s.name, s.exchange, s.sector, s.market, s.currency, s.address])
 
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=stocks.csv"
@@ -434,11 +439,11 @@ def import_stocks():
             next(csv_reader)  # Skip header row
 
             for row in csv_reader:
-                tickersymbol, name, exchange, sector, market, currency = row
+                tickersymbol, name, exchange, sector, market, currency, address = row
                 # Create new stock if it doesn't exist
                 existing_stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
                 if not existing_stock:
-                    new_stock = Stock(tickersymbol=tickersymbol, name=name, exchange=exchange, sector=sector, market=market, currency=currency)
+                    new_stock = Stock(tickersymbol=tickersymbol, name=name, exchange=exchange, sector=sector, market=market, currency=currency, address=address)
                     db.session.add(new_stock)
             
             db.session.commit()

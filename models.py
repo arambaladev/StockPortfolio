@@ -17,10 +17,11 @@ class Stock(db.Model):
     id = db.Column(db.Integer, Sequence('stock_id_seq'), primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     tickersymbol = db.Column(db.String(20), nullable=False, unique=True)
-    exchange = db.Column(db.String(50), nullable=False, default='NYSE')
+    exchange = db.Column(db.String(50), nullable=False, default='NMS')
     sector = db.Column(db.String(100), nullable=True) # Added sector column
     market = db.Column(db.String(50), nullable=True)
     currency = db.Column(db.String(10), nullable=True)
+    address = db.Column(db.String(500), nullable=True)
     transactions = db.relationship('Transaction', backref='stock', lazy=True)
 
     def __repr__(self):

@@ -4,3 +4,5 @@ yfinance
 gunicorn
 oracledb
 python-dotenv
+pandas
+lxml

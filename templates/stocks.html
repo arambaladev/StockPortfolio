@@ -82,6 +82,7 @@
             <th>Sector</th>
             <th>Market</th>
             <th>Currency</th>
+            <th>Address</th>
             <th style="width: 120px;">Actions</th>
         </tr>
         {% for stock in stocks %}
@@ -92,8 +93,9 @@
             <td>{{ stock.sector }}</td>
             <td>{{ stock.market }}</td>
             <td>{{ stock.currency }}</td>
+            <td>{{ stock.address or 'N/A' }}</td>
             <td>
-                <button onclick="openEditStockModal('{{ stock.id }}', '{{ stock.name }}', '{{ stock.tickersymbol }}', '{{ stock.exchange }}', '{{ stock.sector }}', '{{ stock.market }}', '{{ stock.currency }}')" class="action-button edit" style="padding: 5px 10px;">
+                <button onclick="openEditStockModal('{{ stock.id }}', '{{ stock.name }}', '{{ stock.tickersymbol }}', '{{ stock.exchange }}', '{{ stock.sector }}', '{{ stock.market }}', '{{ stock.currency }}', '{{ stock.address }}')" class="action-button edit" style="padding: 5px 10px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
                 <a href="{{ url_for('delete_stock', id=stock.id) }}" class="action-button delete" onclick="return confirm('Are you sure you want to delete this stock?');" style="padding: 5px 10px;">
@@ -139,6 +141,7 @@
                 <p><label>Sector: <input type="text" name="sector"></label></p>
                 <p><label>Market: <input type="text" name="market"></label></p>
                 <p><label>Currency: <input type="text" name="currency"></label></p>
+                <p><label>Address: <input type="text" name="address"></label></p>
                 <input type="submit" value="Submit" class="action-button">
             </form>
         </div>
@@ -151,7 +154,7 @@
             <h2>Import Stocks from CSV</h2>
             <form method="post" action="{{ url_for('import_stocks') }}" enctype="multipart/form-data" style="margin-top: 20px;">
                 <p>Please ensure your CSV has the following columns in this order:</p>
-                <p><strong>Ticker, Name, Exchange, Sector, Market, Currency</strong></p>
+                <p><strong>Ticker, Name, Exchange, Sector, Market, Currency, Address</strong></p>
                 <p>Note: This will only add new stocks; it will not update existing ones.</p>
                 <p>
                     <input type="file" name="file" accept=".csv" required>
@@ -173,6 +176,7 @@
                 <p><label>Sector: <input type="text" id="edit_sector" name="sector"></label></p>
                 <p><label>Market: <input type="text" id="edit_market" name="market"></label></p>
                 <p><label>Currency: <input type="text" id="edit_currency" name="currency"></label></p>
+                <p><label>Address: <input type="text" id="edit_address" name="address"></label></p>
                 <input type="submit" value="Update" class="action-button">
             </form>
         </div>
@@ -191,7 +195,7 @@
 
         // Edit Stock Modal
         const editModal = document.getElementById("editStockModal");
-        function openEditStockModal(id, name, tickersymbol, exchange, sector, market, currency) {
+        function openEditStockModal(id, name, tickersymbol, exchange, sector, market, currency, address) {
             document.getElementById('editStockForm').action = `/edit/${id}`;
             document.getElementById('edit_name').value = name;
             document.getElementById('edit_tickersymbol').value = tickersymbol;
@@ -199,6 +203,7 @@
             document.getElementById('edit_sector').value = sector;
             document.getElementById('edit_market').value = market;
             document.getElementById('edit_currency').value = currency;
+            document.getElementById('edit_address').value = address;
             editModal.style.display = "block";
         }
         function closeEditStockModal() { editModal.style.display = "none"; }
