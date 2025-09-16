@@ -175,6 +175,21 @@
         .pagination a:hover { background-color: #f0f0f0; }
     </style>
 {% endblock %}
+{% block page_scripts %}
+<script>
+    function toggleCharts(currencyCode) {
+        const chartSection = document.getElementById(currencyCode + '-charts-section');
+        const toggleButton = document.getElementById(currencyCode + '-charts-toggle');
+        if (chartSection.style.display === 'none' || chartSection.style.display === '') {
+            chartSection.style.display = 'block';
+            toggleButton.textContent = 'Hide Charts';
+        } else {
+            chartSection.style.display = 'none';
+            toggleButton.textContent = 'Show Charts';
+        }
+    }
+</script>
+{% endblock %}
 
 {% block content %}
     <div id="custom-alert"></div>
@@ -288,6 +303,16 @@
                 </tr>
                 {% endfor %}
             </table>
+            <div style="margin-top: 15px; text-align: left;">
+                <button id="{{ currency_code }}-charts-toggle" onclick="toggleCharts('{{ currency_code }}')" class="action-button" style="background-color: #007bff; padding: 8px 12px; font-size: 14px;">Show Charts</button>
+            </div>
+            <div id="{{ currency_code }}-charts-section" style="display: none; margin-top: 20px;">
+                <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
+                    <div style="width: 25%; min-width: 250px;"><canvas id="{{ currency_code }}-stock-chart"></canvas></div>
+                    <div style="width: 25%; min-width: 250px;"><canvas id="{{ currency_code }}-sector-chart"></canvas></div>
+                </div>
+            </div>
+
         {% endif %}
     {% endmacro %}
 
@@ -343,6 +368,70 @@
             {% if login_success %}
                 showCustomAlert('Logged in successfully!');
             {% endif %}
+
+            // --- Chart Rendering ---
+            function renderPieChart(ctx, title, labels, data) {
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Value',
+                            data: data,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)',
+                                'rgba(255, 206, 86, 0.8)', 'rgba(75, 192, 192, 0.8)',
+                                'rgba(153, 102, 255, 0.8)', 'rgba(255, 159, 64, 0.8)',
+                                'rgba(199, 199, 199, 0.8)', 'rgba(83, 102, 255, 0.8)',
+                                'rgba(40, 159, 64, 0.8)', 'rgba(210, 99, 132, 0.8)'
+                            ],
+                            borderColor: 'rgba(255, 255, 255, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        const value = context.raw;
+                                        const total = context.chart.getDatasetMeta(0).total;
+                                        const percentage = ((value / total) * 100).toFixed(2);
+                                        return `${label} ${value.toLocaleString()} (${percentage}%)`;
+                                    }
+                                }
+                            },
+                            title: { display: true, text: title }
+                        }
+                    }
+                });
+            }
+
+            // USD Charts
+            const usdStockCtx = document.getElementById('usd-stock-chart');
+            if (usdStockCtx) {
+                renderPieChart(usdStockCtx, 'Stock Allocation (USD)', {{ usd_portfolio_data|map(attribute='tickersymbol')|list|tojson }}, {{ usd_portfolio_data|map(attribute='value')|list|tojson }});
+            }
+            const usdSectorCtx = document.getElementById('usd-sector-chart');
+            if (usdSectorCtx) {
+                renderPieChart(usdSectorCtx, 'Sector Allocation (USD)', {{ usd_sector_data.keys()|list|tojson }}, {{ usd_sector_data.values()|list|tojson }});
+            }
+
+            // INR Charts
+            const inrStockCtx = document.getElementById('inr-stock-chart');
+            if (inrStockCtx) {
+                renderPieChart(inrStockCtx, 'Stock Allocation (INR)', {{ inr_portfolio_data|map(attribute='tickersymbol')|list|tojson }}, {{ inr_portfolio_data|map(attribute='value')|list|tojson }});
+            }
+            const inrSectorCtx = document.getElementById('inr-sector-chart');
+            if (inrSectorCtx) {
+                renderPieChart(inrSectorCtx, 'Sector Allocation (INR)', {{ inr_sector_data.keys()|list|tojson }}, {{ inr_sector_data.values()|list|tojson }});
+            }
 
             // --- Reporting Currency Logic ---
             const currencyPref = document.getElementById('currency-preference');

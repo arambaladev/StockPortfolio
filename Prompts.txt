@@ -160,11 +160,11 @@ Now, Let us implement Reporting currency. Assume, user selects USD, then Indian 
 
 Need to implement:
 
-1. Get rid of Price table - latest price should be on the fly
+1. DONE - Get rid of Price table - latest price should be on the fly
 2. Portfolio page - export with charts
 3. charts at Portfolio page
 3.a: Networth chart based on monthly movements if it is one year old - if not weekly
-3.b: Invested amount and Gain - CAn we calculate and convert to USD/INR - Should we store for every txn in the txn table? 
+3.b: DONE - Invested amount and Gain - CAn we calculate and convert to USD/INR - Should we store for every txn in the txn table? 
 4. Dividend income based on selected date range - USd/INR
 5. CApital Gains based on selected date range - USD/INR
 6. Probably the info. of each US txn for ITR-2 
