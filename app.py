@@ -104,20 +104,18 @@ def format_currency(value):
 def format_inr_currency(value):
     """Format a value as currency using the Indian numbering system (lakhs, crores)."""
     try:
-        val_str = f"{value:,.2f}"
-        if '.' in val_str:
-            integer_part, decimal_part = val_str.split('.')
-            integer_part = integer_part.replace(',', '')
-            if len(integer_part) > 3:
-                last_three = integer_part[-3:]
-                other_digits = integer_part[:-3]
-                other_digits = ','.join(other_digits[max(0, i-2):i] for i in range(len(other_digits), 0, -2))[::-1]
-                return f"{other_digits},{last_three}.{decimal_part}"
-            else:
-                return f"{integer_part}.{decimal_part}"
+        if value is None:
+            return ""
+        # Convert to string with 2 decimal places
+        s = f"{value:.2f}"
+        # Split integer and decimal parts
+        parts = s.split('.')
+        integer_part = parts[0]
+        # Apply Indian comma formatting
+        formatted_integer = integer_part[:-3] + ',' + integer_part[-3:] if len(integer_part) > 3 else integer_part
+        return formatted_integer.replace(',','',1).replace(',',',').replace('-,','-') + '.' + parts[1]
     except (ValueError, TypeError):
         return value
-    return val_str
 
 def login_required(f):
     @wraps(f)
@@ -642,9 +640,20 @@ def add_transaction():
         market = request.form.get('market', 'us_market') # Default to us_market if not provided
         currency = request.form['currency'] # Use the currency from the form
 
+        # Standardize the date format to YYYY-MM-DD on entry
+        try:
+            date = datetime.datetime.strptime(date, '%Y-%m-%d').strftime('%Y-%m-%d')
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Please use YYYY-MM-DD.'}), 400
+
         stock = Stock.query.filter_by(tickersymbol= tickersymbol).first()
         if not stock:
             return "Stock not found", 404
+
+        # Validate that the transaction currency matches the stock's currency
+        if stock.currency != currency:
+            error_message = f"Currency mismatch: Stock '{tickersymbol}' is in {stock.currency}, but transaction currency is {currency}."
+            return jsonify({'error': error_message}), 400
 
         if operation == 'Sell':
             available_quantity = get_current_stock_quantity(tickersymbol, date, session['user_id'])
@@ -952,6 +961,12 @@ def import_transactions():
                 stock = Stock.query.filter_by(tickersymbol=ticker).first()
                 if not stock:
                     print(f"Skipping row: Stock with ticker {ticker} not found.")
+                    continue
+                
+                # Validate that the transaction currency from CSV matches the stock's currency
+                if stock.currency != currency:
+                    flash(f"Skipping row for '{ticker}': Currency mismatch. Stock is '{stock.currency}', but CSV has '{currency}'.", 'warning')
+                    print(f"Skipping row for '{ticker}': Currency mismatch. Stock is '{stock.currency}', but CSV has '{currency}'.")
                     continue
 
                 # Calculate price in the other currency during import
