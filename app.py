@@ -277,16 +277,7 @@ def index():
             else: # Sell
                 cash_flows.append(transaction.quantity * transaction.price)
             
-            # Handle multiple date formats
-            transaction_date = None
-            for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
-                try:
-                    transaction_date = datetime.datetime.strptime(transaction.date, fmt).date()
-                    break
-                except ValueError:
-                    continue
-            if transaction_date:
-                dates.append(transaction_date)
+            dates.append(transaction.date)
 
         # Add current value as a final cash flow
         if item.quantity > 0 and latest_price > 0:
@@ -499,19 +490,26 @@ def import_stocks():
             csv_reader = csv.reader(stream)
             next(csv_reader)  # Skip header row
 
-            for row in csv_reader:
-                tickersymbol, name, exchange, sector, market, currency, address = row
-                # Create new stock if it doesn't exist
-                existing_stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
-                if not existing_stock:
-                    new_stock = Stock(tickersymbol=tickersymbol, name=name, exchange=exchange, sector=sector, market=market, currency=currency, address=address)
-                    db.session.add(new_stock)
+            for i, row in enumerate(csv_reader, 1): # Start enumeration from 1 for user-friendly row numbers
+                try:
+                    tickersymbol, name, exchange, sector, market, currency, address = row
+                    # Create new stock if it doesn't exist
+                    existing_stock = Stock.query.filter_by(tickersymbol=tickersymbol).first()
+                    if not existing_stock:
+                        new_stock = Stock(tickersymbol=tickersymbol, name=name, exchange=exchange, sector=sector, market=market, currency=currency, address=address)
+                        db.session.add(new_stock)
+                except ValueError:
+                    print(f"Import stocks debug on row {i}: Incorrect number of columns. Row data: {row}")
+                except Exception as e:
+                    print(f"Import stocks debug on row {i} for ticker '{row[0]}': {e}. Row data: {row}")
             
             db.session.commit()
             flash(f'Successfully imported stocks from {file.filename}. New stocks were added.', 'success')
         except Exception as e:
             db.session.rollback()
-            flash(f'An error occurred during import: {e}', 'danger')
+            # Keep flash for critical failure, but row errors are now print statements
+            flash(f'A critical error occurred during import: {e}', 'danger')
+            print(f"A critical error occurred during stock import: {e}")
         return redirect(url_for('stocks_list'))
 
     flash('Invalid file type. Please upload a CSV file.', 'warning')
@@ -642,17 +640,17 @@ def transactions():
 @login_required
 def add_transaction():
     if request.method == 'POST':
-        tickersymbol = request.form['tickersymbol']
+        tickersymbol = request.form['tickersymbol'].upper()
         operation = request.form['operation']
         quantity = request.form['quantity']
-        date = request.form['date']
+        date_str = request.form['date']
         price = request.form['price']
-        market = request.form.get('market', 'us_market') # Default to us_market if not provided
+        market = request.form.get('market', 'us_market')
         currency = request.form['currency'] # Use the currency from the form
 
         # Standardize the date format to YYYY-MM-DD on entry
         try:
-            date = datetime.datetime.strptime(date, '%Y-%m-%d').strftime('%Y-%m-%d')
+            date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             return jsonify({'error': 'Invalid date format. Please use YYYY-MM-DD.'}), 400
 
@@ -666,7 +664,7 @@ def add_transaction():
             return jsonify({'error': error_message}), 400
 
         if operation == 'Sell':
-            available_quantity = get_current_stock_quantity(tickersymbol, date, session['user_id'])
+            available_quantity = get_current_stock_quantity(tickersymbol, date_obj, session['user_id'])
             if int(quantity) > available_quantity:
                 return jsonify({'error': 'Insufficient quantity to sell.'}), 400
 
@@ -674,16 +672,16 @@ def add_transaction():
         inr_price, usd_price = None, None
         if currency == 'USD':
             usd_price = float(price)
-            inr_rate = get_historical_exchange_rate(date, 'USD', 'INR')
+            inr_rate = get_historical_exchange_rate(date_str, 'USD', 'INR')
             if inr_rate:
                 inr_price = float(price) * inr_rate
         elif currency == 'INR':
             inr_price = float(price)
-            usd_rate = get_historical_exchange_rate(date, 'INR', 'USD')
+            usd_rate = get_historical_exchange_rate(date_str, 'INR', 'USD')
             if usd_rate:
                 usd_price = float(price) * usd_rate
 
-        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date, price=float(price), inrprice=inr_price, usdprice=usd_price, market=market, currency=currency, user_id=session['user_id'])
+        new_transaction = Transaction(tickersymbol=tickersymbol, operation=operation, quantity=int(quantity), date=date_obj, price=float(price), inrprice=inr_price, usdprice=usd_price, market=market, currency=currency, user_id=session['user_id'])
         db.session.add(new_transaction)
         db.session.commit()
         
@@ -694,11 +692,15 @@ def add_transaction():
 @login_required
 def edit_transaction(id):
     transaction = Transaction.query.get_or_404(id)
+    # Format date object to string for the form input
+    transaction_date_str = transaction.date.strftime('%Y-%m-%d')
+
     if request.method == 'POST':
-        transaction.tickersymbol = request.form['tickersymbol']
+        transaction.tickersymbol = request.form['tickersymbol'].upper()
         transaction.operation = request.form['operation']
         transaction.quantity = int(request.form['quantity'])
-        transaction.date = request.form['date']
+        date_str = request.form['date']
+        transaction.date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
         transaction.price = float(request.form['price'])
         transaction.market = request.form.get('market', transaction.market)
         transaction.currency = request.form.get('currency', transaction.currency)
@@ -708,7 +710,7 @@ def edit_transaction(id):
             return "Stock not found", 404
 
         if transaction.operation == 'Sell':
-            available_quantity = get_current_stock_quantity(transaction.tickersymbol, transaction.date, session['user_id'], exclude_transaction_id=transaction.id)
+            available_quantity = get_current_stock_quantity(transaction.tickersymbol, transaction.date, session['user_id'], exclude_transaction_id=id)
             if transaction.quantity > available_quantity:
                 return "Insufficient quantity to sell after considering other transactions.", 400 # Bad Request
 
@@ -716,12 +718,12 @@ def edit_transaction(id):
         inr_price, usd_price = None, None
         if transaction.currency == 'USD':
             usd_price = transaction.price
-            inr_rate = get_historical_exchange_rate(transaction.date, 'USD', 'INR')
+            inr_rate = get_historical_exchange_rate(date_str, 'USD', 'INR')
             if inr_rate:
                 inr_price = transaction.price * inr_rate
         elif transaction.currency == 'INR':
             inr_price = transaction.price
-            usd_rate = get_historical_exchange_rate(transaction.date, 'INR', 'USD')
+            usd_rate = get_historical_exchange_rate(date_str, 'INR', 'USD')
             if usd_rate:
                 usd_price = transaction.price * usd_rate
         transaction.inrprice, transaction.usdprice = inr_price, usd_price
@@ -732,7 +734,7 @@ def edit_transaction(id):
         return redirect(url_for('transactions'))
     
     stocks = Stock.query.all()
-    return render_template('edit_transaction.html', transaction=transaction, stocks=stocks)
+    return render_template('edit_transaction.html', transaction=transaction, transaction_date_str=transaction_date_str, stocks=stocks)
 
 @app.route('/delete_transaction/<int:id>')
 @login_required
@@ -847,7 +849,7 @@ def lot_details(tickersymbol):
         elif t.operation == 'Sell':
             sell_quantity = t.quantity
             sale_price = t.price
-            sale_date = t.date # Capture the sale date
+            sale_date = t.date # Capture the sale date (which is now a date object)
             while sell_quantity > 0 and open_lots:
                 oldest_lot = open_lots[0]
                 
@@ -860,25 +862,15 @@ def lot_details(tickersymbol):
                 sale_xirr = None
                 try:
                     sale_cash_flows = [-(quantity_from_lot * purchase_price), quantity_from_lot * sale_price]
-                    sale_dates = []
-                    for date_str in [oldest_lot['date'], sale_date]:
-                        parsed_date = None
-                        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
-                            try:
-                                parsed_date = datetime.datetime.strptime(date_str, fmt).date()
-                                break
-                            except ValueError:
-                                continue
-                        if parsed_date:
-                            sale_dates.append(parsed_date)
-
+                    # Dates are already date objects
+                    sale_dates = [oldest_lot['date'], sale_date]
                     sale_xirr = calculate_xirr(sale_cash_flows, sale_dates)
                 except Exception as e:
                     print(f"Error calculating XIRR for sale: {e}")
 
                 oldest_lot['sales_from_lot'].append({
                     'sold_quantity': quantity_from_lot,
-                    'sale_date': sale_date,
+                    'sale_date': sale_date.strftime('%Y-%m-%d'),
                     'purchase_price': purchase_price,
                     'sale_price': sale_price,
                     'realized_gain': realized_gain,
@@ -902,17 +894,8 @@ def lot_details(tickersymbol):
         if lot['balance_quantity'] > 0:
             try:
                 balance_cash_flows = [-(lot['balance_quantity'] * lot['price']), lot['current_value']]
-                balance_dates = []
-                # Parse lot date
-                parsed_lot_date = None
-                for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
-                    try:
-                        parsed_lot_date = datetime.datetime.strptime(lot['date'], fmt).date()
-                        break
-                    except ValueError:
-                        continue
-                if parsed_lot_date:
-                    balance_dates.append(parsed_lot_date)
+                # Dates are already date objects
+                balance_dates = [lot['date']]
                 balance_dates.append(datetime.date.today())
                 if balance_dates[0] < balance_dates[1]: # XIRR needs at least two different dates
                     lot['balance_xirr'] = calculate_xirr(balance_cash_flows, balance_dates)
@@ -920,7 +903,7 @@ def lot_details(tickersymbol):
                 print(f"Error calculating XIRR for lot balance: {e}")
 
     # Sort lots by purchase date in descending order as requested
-    lots.sort(key=lambda x: x['date'], reverse=True)
+    lots.sort(key=lambda x: x['date'], reverse=True) # Sorting by date object works correctly
 
     # Render a partial template to get the HTML for the lot details
     lots_html = render_template('_lot_details_content.html', lots=lots, tickersymbol=tickersymbol, latest_price=latest_price, currency=currency)
@@ -941,7 +924,7 @@ def export_transactions():
 
     # Write data rows
     for t in transactions:
-        cw.writerow([t.date, t.tickersymbol, t.operation, t.quantity, t.price, t.currency, t.market])
+        cw.writerow([t.date.strftime('%Y-%m-%d'), t.tickersymbol, t.operation, t.quantity, t.price, t.currency, t.market, t.inrprice, t.usdprice])
 
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=transactions.csv"
@@ -968,42 +951,50 @@ def import_transactions():
 
             tickers_to_update = set()
 
-            for row in csv_reader:
-                date, ticker, operation, quantity, price, currency, market = row
-                
-                # Basic validation
-                stock = Stock.query.filter_by(tickersymbol=ticker).first()
-                if not stock:
-                    print(f"Skipping row: Stock with ticker {ticker} not found.")
-                    continue
-                
-                # Validate that the transaction currency from CSV matches the stock's currency
-                if stock.currency != currency:
-                    flash(f"Skipping row for '{ticker}': Currency mismatch. Stock is '{stock.currency}', but CSV has '{currency}'.", 'warning')
-                    print(f"Skipping row for '{ticker}': Currency mismatch. Stock is '{stock.currency}', but CSV has '{currency}'.")
-                    continue
+            for i, row in enumerate(csv_reader, 1): # Start enumeration from 1
+                try:
+                    # Handle CSVs with 7 columns (standard) or 9 (with optional prices)
+                    if len(row) < 7:
+                        raise ValueError("Incorrect number of columns")
+                    
+                    date_str, ticker, operation, quantity, price, currency, market = row[:7]
 
-                # Calculate and store prices in both INR and USD during import
-                inr_price, usd_price = None, None
-                if currency == 'USD':
-                    usd_price = float(price)
-                    inr_rate = get_historical_exchange_rate(date, 'USD', 'INR')
-                    if inr_rate:
-                        inr_price = float(price) * inr_rate
-                elif currency == 'INR':
-                    inr_price = float(price)
-                    usd_rate = get_historical_exchange_rate(date, 'INR', 'USD')
-                    if usd_rate:
-                        usd_price = float(price) * usd_rate
+                    # Basic validation
+                    stock = Stock.query.filter_by(tickersymbol=ticker).first()
+                    if not stock:
+                        raise ValueError(f"Stock with ticker '{ticker}' not found in the database.")
+                    
+                    # Validate that the transaction currency from CSV matches the stock's currency
+                    if stock.currency != currency:
+                        raise ValueError(f"Currency mismatch. Stock is '{stock.currency}', but CSV has '{currency}'.")
 
-                new_transaction = Transaction(
-                    date=date, tickersymbol=ticker, operation=operation,
-                    quantity=int(quantity), price=float(price), currency=currency,
-                    market=market, user_id=session['user_id'],
-                    inrprice=inr_price, usdprice=usd_price
-                )
-                db.session.add(new_transaction)
-                tickers_to_update.add(ticker)
+                    # Calculate and store prices in both INR and USD during import
+                    inr_price, usd_price = None, None
+                    if currency == 'USD':
+                        usd_price = float(price)
+                        inr_rate = get_historical_exchange_rate(date_str, 'USD', 'INR')
+                        if inr_rate:
+                            inr_price = float(price) * inr_rate
+                    elif currency == 'INR':
+                        inr_price = float(price)
+                        usd_rate = get_historical_exchange_rate(date_str, 'INR', 'USD')
+                        if usd_rate:
+                            usd_price = float(price) * usd_rate
+
+                    new_transaction = Transaction(
+                        date=datetime.datetime.strptime(date_str, '%Y-%m-%d').date(), tickersymbol=ticker, operation=operation,
+                        quantity=int(quantity), price=float(price), currency=currency,
+                        market=market, user_id=session['user_id'],
+                        inrprice=inr_price, usdprice=usd_price
+                    )
+                    db.session.add(new_transaction)
+                    tickers_to_update.add(ticker)
+                except ValueError as e:
+                    # Catches both incorrect column count and other validation ValueErrors
+                    print(f"Import transactions debug on row {i}: {e}. Row data: {row}")
+                except Exception as e:
+                    # Catch any other unexpected errors
+                    print(f"Import transactions unexpected debug error on row {i}: {e}. Row data: {row}")
 
             db.session.commit()
             for ticker in tickers_to_update:
@@ -1011,7 +1002,8 @@ def import_transactions():
             flash(f'Successfully imported transactions from {file.filename}', 'success')
         except Exception as e:
             db.session.rollback()
-            flash(f'An error occurred during import: {e}', 'danger')
+            flash(f'A critical error occurred during import: {e}', 'danger')
+            print(f"A critical error occurred during transaction import: {e}")
         return redirect(url_for('transactions'))
 
     flash('Invalid file type. Please upload a CSV file.', 'warning')

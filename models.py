@@ -33,7 +33,7 @@ class Transaction(db.Model):
     tickersymbol = db.Column(db.String(20), db.ForeignKey('stock.tickersymbol'), nullable=False)
     operation = db.Column(db.String(4), nullable=False, default='Buy')
     quantity = db.Column(db.Integer, nullable=False)
-    date = db.Column(db.String(20), nullable=False)
+    date = db.Column(db.Date, nullable=False)
     price = db.Column(db.Float, nullable=False)
     inrprice = db.Column(db.Float, nullable=True)
     usdprice = db.Column(db.Float, nullable=True)
