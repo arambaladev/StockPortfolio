@@ -111,19 +111,12 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay"><p>Importing transactions... Please wait.</p></div>
     <div id="custom-alert"></div>
-    {% macro sortable_th(column, display_name, current_sort_by, current_order) %}
-        {% set new_order = 'asc' if current_sort_by == column and current_order == 'desc' else 'desc' %}
-        <th style="background-color: maroon; color: white;">
-            <a href="{{ url_for('transactions', sort_by=column, order=new_order) }}" style="color: white; text-decoration: none; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+    {% macro sortable_th(column_index, display_name, data_type='string') %}
+        <th style="background-color: maroon; color: white; cursor: pointer;" onclick="sortTable({{ column_index }}, '{{ data_type }}')">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <span>{{ display_name }}</span>
-                <span>
-                    {% if current_sort_by == column %}
-                        {{ '▼' if current_order == 'desc' else '▲' }}
-                    {% else %}
-                        <span style="color: #ccc;">▲▼</span>
-                    {% endif %}
-                </span>
-            </a>
+                <span class="sort-arrow" style="color: #ccc;">▲▼</span>
+            </div>
         </th>
     {% endmacro %}
 
@@ -139,76 +132,60 @@
             <button onclick="openAddTransactionModal()" style="background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 16px;">+ Add Transaction</button>
         </div>
     </div>
-    <table>
-        <tr>
-            {{ sortable_th('tickersymbol', 'Ticker Symbol', sort_by, order) }}
-            {{ sortable_th('operation', 'Operation', sort_by, order) }}
-            {{ sortable_th('quantity', 'Quantity', sort_by, order) }}
-            {{ sortable_th('date', 'Date', sort_by, order) }}
-            {{ sortable_th('price', 'Price', sort_by, order) }}
-            <th style="background-color: maroon; color: white;">Price (INR)</th>
-            <th style="background-color: maroon; color: white;">Price (USD)</th>
-            <th style="background-color: maroon; color: white;">Total Value</th> <!-- Not sortable as it's calculated -->
-            <th style="width: 100px; background-color: maroon; color: white;">Actions</th> <!-- Not sortable -->
-        </tr>
-        {% for transaction in transactions %}
-        <tr>
-            <td>{{ transaction.tickersymbol }}</td>
-            <td>{{ transaction.operation }}</td>
-            <td>{{ transaction.quantity }}</td>
-            <td>{{ transaction.date }}</td>
-            <td>
-                {% if transaction.currency == 'INR' %}₹{% else %}${% endif %}
-                {{ transaction.price|format_inr_currency if transaction.currency == 'INR' else transaction.price|format_currency }}
-            </td>
-            <td>
-                {% if transaction.inrprice is not none %}
-                    ₹{{ transaction.inrprice|format_inr_currency }}
-                {% endif %}
-            </td>
-            <td>
-                {% if transaction.usdprice is not none %}${{ transaction.usdprice|format_currency }}{% endif %}
-            </td>
-            <td>
-                {% if transaction.currency == 'INR' %}
-                    ₹{{ (transaction.quantity * transaction.price)|format_inr_currency() }}
-                {% else %}
-                    ${{ (transaction.quantity * transaction.price)|format_currency() }}
-                {% endif %}
-            </td>
-            <td style="width: 100px;">
-                <a href="{{ url_for('edit_transaction', id=transaction.id) }}" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none; margin-right: 5px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                </a>
-                <a href="{{ url_for('delete_transaction', id=transaction.id) }}" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                </a>
-            </td>
-        </tr>
-        {% endfor %}
+    <table id="transactions-table">
+        <thead>
+            <tr>
+                {{ sortable_th(0, 'Ticker Symbol', 'string') }}
+                {{ sortable_th(1, 'Operation', 'string') }}
+                {{ sortable_th(2, 'Quantity', 'number') }}
+                {{ sortable_th(3, 'Date', 'date') }}
+                {{ sortable_th(4, 'Price', 'number') }}
+                <th style="background-color: maroon; color: white;">Price (INR)</th>
+                <th style="background-color: maroon; color: white;">Price (USD)</th>
+                <th style="background-color: maroon; color: white;">Total Value</th> <!-- Not sortable as it's calculated -->
+                <th style="width: 100px; background-color: maroon; color: white;">Actions</th> <!-- Not sortable -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+            <tr>
+                <td>{{ transaction.tickersymbol }}</td>
+                <td>{{ transaction.operation }}</td>
+                <td>{{ transaction.quantity }}</td>
+                <td>{{ transaction.date.strftime('%Y-%m-%d') }}</td>
+                <td>
+                    {% if transaction.currency == 'INR' %}₹{% else %}${% endif %}
+                    {{ transaction.price|format_inr_currency if transaction.currency == 'INR' else transaction.price|format_currency }}
+                </td>
+                <td>
+                    {% if transaction.inrprice is not none %}
+                        ₹{{ transaction.inrprice|format_inr_currency }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if transaction.usdprice is not none %}${{ transaction.usdprice|format_currency }}{% endif %}
+                </td>
+                <td>
+                    {% if transaction.currency == 'INR' %}
+                        ₹{{ (transaction.quantity * transaction.price)|format_inr_currency() }}
+                    {% else %}
+                        ${{ (transaction.quantity * transaction.price)|format_currency() }}
+                    {% endif %}
+                </td>
+                <td style="width: 100px;">
+                    <a href="{{ url_for('edit_transaction', id=transaction.id) }}" style="background-color: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none; margin-right: 5px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </a>
+                    <a href="{{ url_for('delete_transaction', id=transaction.id) }}" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; text-decoration: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
 
-    <div class="pagination">
-        {% if pagination.has_prev %}
-            <a href="{{ url_for('transactions', page=pagination.prev_num, sort_by=sort_by, order=order) }}">&laquo; Previous</a>
-        {% endif %}
-
-        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
-            {% if page_num %}
-                {% if pagination.page == page_num %}
-                    <span class="current">{{ page_num }}</span>
-                {% else %}
-                    <a href="{{ url_for('transactions', page=page_num, sort_by=sort_by, order=order) }}">{{ page_num }}</a>
-                {% endif %}
-            {% else %}
-                <span>...</span>
-            {% endif %}
-        {% endfor %}
-
-        {% if pagination.has_next %}
-            <a href="{{ url_for('transactions', page=pagination.next_num, sort_by=sort_by, order=order) }}">Next &raquo;</a>
-        {% endif %}
-    </div>
+    <!-- Pagination is removed as all data is now on the client -->
 
     <!-- Import from CSV Modal -->
     <div id="importModal" class="modal">
@@ -282,6 +259,53 @@
     </div>
 
     <script>
+        // --- Client-side Table Sorting ---
+        let sortDirections = {}; // Object to store sort direction for each column
+
+        function sortTable(columnIndex, dataType) {
+            const table = document.getElementById("transactions-table");
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+
+            // Determine sort direction (asc, desc, or default to asc)
+            const direction = sortDirections[columnIndex] === 'asc' ? 'desc' : 'asc';
+            sortDirections = { [columnIndex]: direction }; // Only one column sorted at a time
+
+            // Update sort arrows
+            document.querySelectorAll('.sort-arrow').forEach((arrow, index) => {
+                const th = arrow.closest('th');
+                if (th.cellIndex === columnIndex) {
+                    arrow.textContent = direction === 'asc' ? '▲' : '▼';
+                    arrow.style.color = 'white';
+                } else {
+                    arrow.textContent = '▲▼';
+                    arrow.style.color = '#ccc';
+                }
+            });
+
+            const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+            rows.sort((a, b) => {
+                let valA = a.cells[columnIndex].textContent.trim();
+                let valB = b.cells[columnIndex].textContent.trim();
+
+                if (dataType === 'number') {
+                    // Remove currency symbols and commas for numeric sort
+                    valA = parseFloat(valA.replace(/[₹$,]/g, '').replace(/,/g, ''));
+                    valB = parseFloat(valB.replace(/[₹$,]/g, '').replace(/,/g, ''));
+                } else if (dataType === 'date') {
+                    valA = new Date(valA);
+                    valB = new Date(valB);
+                }
+
+                const comparison = dataType === 'string' ? collator.compare(valA, valB) : valA - valB;
+                return direction === 'asc' ? comparison : -comparison;
+            });
+
+            // Re-append sorted rows to the table body
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
         // Get references to the elements
         const transactionTickerInput = document.getElementById('tickersymbol');
         const transactionDateInput = document.getElementById('date');

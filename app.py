@@ -499,9 +499,9 @@ def import_stocks():
                         new_stock = Stock(tickersymbol=tickersymbol, name=name, exchange=exchange, sector=sector, market=market, currency=currency, address=address)
                         db.session.add(new_stock)
                 except ValueError:
-                    print(f"Import stocks debug on row {i}: Incorrect number of columns. Row data: {row}")
+                    pass # Silently skip rows with incorrect column counts
                 except Exception as e:
-                    print(f"Import stocks debug on row {i} for ticker '{row[0]}': {e}. Row data: {row}")
+                    pass # Silently skip rows that cause other errors
             
             db.session.commit()
             flash(f'Successfully imported stocks from {file.filename}. New stocks were added.', 'success')
@@ -509,7 +509,7 @@ def import_stocks():
             db.session.rollback()
             # Keep flash for critical failure, but row errors are now print statements
             flash(f'A critical error occurred during import: {e}', 'danger')
-            print(f"A critical error occurred during stock import: {e}")
+            # print(f"A critical error occurred during stock import: {e}") # Removed debug print
         return redirect(url_for('stocks_list'))
 
     flash('Invalid file type. Please upload a CSV file.', 'warning')
@@ -613,28 +613,14 @@ def calculate_fifo_cost_basis(tickersymbol, user_id, current_quantity):
 @app.route('/transactions')
 @login_required
 def transactions():
-    sort_by = request.args.get('sort_by', 'date') # Default sort by date if not specified
-    order = request.args.get('order', 'desc') # Default order descending
-
-    page = request.args.get('page', 1, type=int)
-    per_page = 15 # You can adjust this number
-
-    # Base query
-    query = Transaction.query.filter_by(user_id=session['user_id'])
-
-    # Sorting logic
-    sort_column = getattr(Transaction, sort_by, Transaction.date) # Default to date column if invalid
-    if order == 'asc':
-        query = query.order_by(sort_column.asc(), Transaction.id.asc())
-    else:
-        query = query.order_by(sort_column.desc(), Transaction.id.desc())
-
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    transactions = pagination.items
+    # Fetch all transactions for the user, ordered by date descending by default.
+    # Client-side JavaScript will now handle sorting.
+    transactions = Transaction.query.filter_by(user_id=session['user_id']).order_by(Transaction.date.desc(), Transaction.id.desc()).all()
+    
     stocks = Stock.query.order_by(Stock.tickersymbol).all() # Fetch all stocks, ordered alphabetically
     # Determine the latest ticker symbol for defaulting. Assuming latest means last alphabetically.
     latest_tickersymbol = stocks[-1].tickersymbol if stocks else ''
-    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol, pagination=pagination, sort_by=sort_by, order=order)
+    return render_template('transactions.html', transactions=transactions, stocks=stocks, latest_tickersymbol=latest_tickersymbol)
 
 @app.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
@@ -990,11 +976,11 @@ def import_transactions():
                     db.session.add(new_transaction)
                     tickers_to_update.add(ticker)
                 except ValueError as e:
-                    # Catches both incorrect column count and other validation ValueErrors
-                    print(f"Import transactions debug on row {i}: {e}. Row data: {row}")
+                    # Silently skip rows with validation errors (e.g., wrong column count, ticker not found)
+                    pass
                 except Exception as e:
-                    # Catch any other unexpected errors
-                    print(f"Import transactions unexpected debug error on row {i}: {e}. Row data: {row}")
+                    # Silently skip rows with other unexpected errors
+                    pass
 
             db.session.commit()
             for ticker in tickers_to_update:
@@ -1003,7 +989,7 @@ def import_transactions():
         except Exception as e:
             db.session.rollback()
             flash(f'A critical error occurred during import: {e}', 'danger')
-            print(f"A critical error occurred during transaction import: {e}")
+            # print(f"A critical error occurred during transaction import: {e}") # Removed debug print
         return redirect(url_for('transactions'))
 
     flash('Invalid file type. Please upload a CSV file.', 'warning')
