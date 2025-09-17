@@ -55,6 +55,7 @@ def populate_initial_stocks():
                 sector = ticker_info.get('sector', 'N/A') # Get sector info
                 market = ticker_info.get('market', 'N/A')
                 currency = ticker_info.get('currency', 'N/A')
+                address = ticker_info.get('address', 'N/A')
                 # Exchange can be derived from market or currency, or fetched directly
                 exchange = ticker_info.get('exchange', 'NSE' if '.NS' in ticker_symbol else 'NMS')
                 
